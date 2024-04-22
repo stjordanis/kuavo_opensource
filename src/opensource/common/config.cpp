@@ -1,3 +1,4 @@
+
 #include "config.h"
 #include <cstdint>
 namespace HighlyDynamic
@@ -101,7 +102,8 @@ namespace HighlyDynamic
 
         std::vector<std::string> end_effector_type = RobotConfig.getValue<std::vector<std::string>>("EndEffectorType");
         std::map<std::string, EndEffectorType> end_effector_type_map = {{"none", EndEffectorType::none},
-                                                                        {"jodell", EndEffectorType::jodell}};
+                                                                        {"jodell", EndEffectorType::jodell},
+                                                                        {"qiangnao", EndEffectorType::qiangnao}};
         for (auto &name : end_effector_type)
         {
             // std::cout << "EndEffectorType: " << name << std::endl;

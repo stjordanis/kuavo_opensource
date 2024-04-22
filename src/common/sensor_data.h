@@ -19,6 +19,7 @@ typedef struct
   Eigen::Vector3d free_acc_W;
   Eigen::Vector4d quat_W;
   std::vector<EndEffectorInfo> end_effectors_data;
+  // std::vector<EndEffectorInfo> endhand_effectors_data;
   void resizeJoint(size_t n)
   {
     joint_q.resize(n);

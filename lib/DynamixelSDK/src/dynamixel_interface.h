@@ -125,7 +125,7 @@ public:
         {R_HAND_MID, 0},
         {R_HAND_LOW, 0}};
 
-    void init(const char *device_name, int baud_rate);
+    int init(const char *device_name, int baud_rate);
     void initTargetPositions(const std::map<uint8_t, std::array<uint16_t, 3>> &servoPositions, std::map<uint8_t, std::uint16_t> &targetPositions);
     void setPosition(const std::vector<uint8_t> &ids, const std::vector<uint16_t> &positions);
     void setPosition(uint8_t id, uint16_t position);

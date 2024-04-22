@@ -5,11 +5,11 @@ DECLARE_double(realtime);
 DECLARE_bool(pub);
 DECLARE_bool(real);
 DECLARE_bool(cali);
-DECLARE_bool(log_lcm);
+DECLARE_bool(log);
 DECLARE_bool(rm_est);
 DECLARE_bool(pub_real);
 DECLARE_bool(play_back_mode);
-DEFINE_string(play_path, "/tmp/log.csv", "lcm_log.csv path for playback");
+DEFINE_string(play_path, "/tmp/lcm_log.csv", "lcm_log.csv path for playback");
 DECLARE_double(powerscale);
 
 #define THREAD_NUM 1
@@ -33,7 +33,7 @@ namespace HighlyDynamic
             stateEstimation = Estimate_ptr;
             FSMState *current_fsm_ptr_ = fsm_ptr;
             int sensor_data_offset = 0;
-            int desire_data_offset = 1;
+            int desire_data_offset = 0;
 
             if (!logPlayer_ptr->isSim)
             {
@@ -150,7 +150,7 @@ namespace HighlyDynamic
 
             signal(SIGINT, HighlyDynamic::sigintHandler);
             FLAGS_play_back_mode = true;
-            FLAGS_log_lcm = true;
+            FLAGS_log = true;
             // if (FLAGS_play_back_mode) // 回放模式
             {
                 std::string input;
@@ -162,7 +162,7 @@ namespace HighlyDynamic
             }
             {
                 logger_ptr = new LogWriter();
-                logger_ptr->start("/tmp/log_new.csv");
+                logger_ptr->startBinLog("/tmp/log_new.bin");
             }
 
             // 构建和初始化系统图
@@ -190,10 +190,10 @@ namespace HighlyDynamic
                 step_count = 0;
                 th_runing = true;
                 pause = false;
-                threadStart();
+                // threadStart();
                 // state_thread.join();
                 // keyboard_thread.join();
-                std::cout << ">>> play started ...\npress 'r'|'s' to restart, ' ' to pause\n";
+                std::cout << ">>> press 'r'|'s' to restart play, ' ' to pause\n press 't' to test IK\n";
                 while (1)
                 {
                     if (kbhit())
@@ -216,9 +216,21 @@ namespace HighlyDynamic
                             th_runing = false;
                             pause = false;
                             std::cout << ">>> stopping...\n";
-                            state_thread.join();
+                            if (state_thread.joinable())
+                                state_thread.join();
+                            threadStart();
+
                             std::cout << ">>> replay...\n";
                             break;
+                        }
+                        else if (Walk_Command == 't')
+                        {
+                            int index;
+                            std::cout << "Enter an data index to test IK: ";
+                            std::cin >> index;
+                            RobotState_t state_des_;
+                            logPlayer_ptr->readStateDes(index, state_des_);
+                            traj_ptr->doIK(state_des_);
                         }
 
                         Walk_Command = '\0';
@@ -271,7 +283,9 @@ namespace HighlyDynamic
     private:
         void checkPause()
         {
-            if (step_count >= max_play_back_step)
+            std::cout << "max_play_back_step"<< max_play_back_step << std::endl;
+            std::cout << "step_count" << step_count << std::endl;
+            if (step_count >= max_play_back_step - 2)
             {
                 std::cout << ">>> play end\npress 'r'|'s' to restart\n";
                 pause = true;

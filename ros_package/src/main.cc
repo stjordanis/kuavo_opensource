@@ -7,7 +7,6 @@
 #include <dynamic_biped/srvchangeCtlMode.h>
 #include <dynamic_biped/changeArmCtrlMode.h>
 #include <dynamic_biped/changeAMBACCtrlMode.h>
-#include <dynamic_biped/srvChangeJoller.h>
 
 #include <sensor_msgs/JointState.h>
 #include <dynamic_biped/robotQVTau.h>
@@ -100,7 +99,6 @@ public:
         static ros::ServiceServer change_ctl_mode_service = nh.advertiseService("change_ctl_mode", changeCtlModeCallback);
         static ros::ServiceServer change_arm_ctrl_mode_service = nh.advertiseService("change_arm_ctrl_mode", changeArmCtlModeCallback);
         static ros::ServiceServer change_AMBAC_ctrl_mode_service = nh.advertiseService("change_AMBAC_ctrl_mode", changeAMBACCtlModeCallback);
-        static ros::ServiceServer change_Joller_pos_service = nh.advertiseService("change_joller_position", srvChangeJollerCallback);
     }
     //
     static bool changeArmCtlModeCallback(dynamic_biped::changeArmCtrlMode::Request &req,
@@ -170,7 +168,7 @@ public:
     static void walkCommandCallback(const dynamic_biped::walkCommand::ConstPtr &msg)
     {
         updateState();
-        if (HDrobotState.phase != P_walk)
+        if (HDrobotState.phase != P_walk && msg->mode != 2)
         {
             ROS_WARN("NOT IN P_walk STATUS, ignore P_walk Command");
             return;
@@ -181,39 +179,34 @@ public:
             ROS_WARN("Control mode does not match, msg.mode=%d | controll mode=%d", msg->mode, controlmode);
             return;
         }
-        if (msg->mode == 1) // 1: velocity control
-        {
-            ROS_INFO("Received velocity control command: [%f, %f, %f]",
-                     msg->values[0], msg->values[1], msg->values[2]);
-            robot_ptr->velocityCommand({msg->values[0], msg->values[1], msg->values[2]});
-        }
-        else // 0: position control
+        if (msg->mode == 0) // 0: position control
         {
             ROS_INFO("Received position control command: [%f, %f, %f]",
                      msg->values[0], msg->values[1], msg->values[2]);
             robot_ptr->positionCommand({msg->values[0], msg->values[1], msg->values[2]});
         }
+        else if (msg->mode == 1) // 1: velocity control
+        {
+            ROS_INFO("Received velocity control command: [%f, %f, %f]",
+                     msg->values[0], msg->values[1], msg->values[2]);
+            robot_ptr->velocityCommand({msg->values[0], msg->values[1], msg->values[2]});
+        }
+        else if (msg->mode == 2) // 2: torque control
+        {
+            if (msg->values.size() != 4)
+            {
+                ROS_INFO("Received invalid step control command!");
+                return;
+            }
+            else
+            {
+                ROS_INFO("Received step control command: [%f, %f, %f, %f]",
+                         msg->values[0], msg->values[1], msg->values[2], msg->values[3]);
+                robot_ptr->stepCommand(msg->values[0], {msg->values[1], msg->values[2], msg->values[3]});
+            }
+        }
     }
 
-    // 服务函数
-    static bool srvChangeJollerCallback(dynamic_biped::srvChangeJoller::Request &req, dynamic_biped::srvChangeJoller::Response &res)
-    {
-        // safe check
-        if (req.l_pos < 0 || req.l_pos > 255 || req.r_pos < 0 || req.r_pos > 255)
-        {
-            ROS_ERROR("Invalid positions. Positions must be in the range [0, 255].");
-            res.result = false;
-            return false;
-        }
-
-        Eigen::Vector2d ros_left_right_pos = {req.l_pos, req.r_pos};
-
-        robot_ptr->SetsetEndEffectors(ros_left_right_pos);
-
-        res.result = true;
-        return true;
-    }   
-    
     // 回调函数处理接收到的 /etherCATJoint/motordata 消息
     static void joint2CommandDesiredCallback(const sensor_msgs::JointState::ConstPtr &msg)
     {

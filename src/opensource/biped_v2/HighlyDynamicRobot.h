@@ -102,11 +102,14 @@ namespace HighlyDynamic
         {
             traj_ptr->velocityCommand(velocityData);
         }
+        void stepCommand(uint32_t num_step, Eigen::Vector3d step_cmd)
+        {
+            traj_ptr->stepCommand(num_step, step_cmd);
+        }
         void changeCtlMode(controlMode_t cm)
         {
             traj_ptr->changeCtlMode(cm);
-            std::cout << "control_mode: " << ((cm == VelocityControl) ? "速度控制" : "位置控制");
-            std::cout << "\n";
+            std::cout << "control_mode: " << controlMode_name_map[cm] << std::endl;
         }
 
         void rosSetMoveitMotr(Eigen::VectorXd targetRosPosition)

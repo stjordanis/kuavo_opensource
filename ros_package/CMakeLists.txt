@@ -22,9 +22,19 @@ endif()
 include_directories(
 # include
   ${catkin_INCLUDE_DIRS}
-  )
+)
+
+set(OPENSOURCE_SRC
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/opensource/biped_v2/HighlyDynamicRobot.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/opensource/common/config.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/opensource/planner/Trajectory.cc
+)
+
+
+
 add_executable(${PROJECT_NAME} 
 ./src/main.cc
+${OPENSOURCE_SRC}
 )
 target_link_directories(${PROJECT_NAME} PUBLIC ${biped_v2_link_dir})
 

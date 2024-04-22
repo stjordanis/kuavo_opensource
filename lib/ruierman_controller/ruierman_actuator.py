@@ -40,7 +40,8 @@ class RuiErManActuator():
 
         # 等待3s
         # time.sleep(3)
-        self.enable()
+        if not self.enable():
+            raise RuntimeError("RuiErManActuator Initialization failed!")
         self.go_to_zero()
 
         self.control_thread = threading.Thread(target=self.control_thread)
@@ -63,7 +64,7 @@ class RuiErManActuator():
             while self.running:
                 time.sleep(dt)
                 # 读取当前位置
-                current_possitions = [motor[5] for motor in self.get_joint_state()]
+                current_possitions = [motor[5] for motor in self.get_joint_state() if type(motor) == list]
                 with self.recvlock:
                     self.current_positions = current_possitions
                 # print("Current Positions:", self.current_positions)
@@ -75,7 +76,7 @@ class RuiErManActuator():
                     self.target_update = False
                 # self.interpolate_move(self.old_target_positions, target_positions, speed=max_speed, dt=0.01)
                 self.send_positions(range(len(joint_address_list)), target_positions)
-                
+
         except Exception as e:
             print(e)
         print("threadend")
@@ -144,6 +145,10 @@ class RuiErManActuator():
             self.whj30.clear_joint_error(address)
             state = self.whj30.get_joint_state(address)
             print(f"ruierman actuator enable joint {i}, state: {state}")
+            if type(state) == bool:
+                print(f"ruierman actuator enable joint {i} failed")
+                return False
+        return True
         
     def disable(self):
         for address in joint_address_list:

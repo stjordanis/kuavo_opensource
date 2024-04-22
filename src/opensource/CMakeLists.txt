@@ -27,6 +27,7 @@ set(biped_v2_include_dir
   ../../lib/DynamixelSDK/include/dynamixel_sdk
   ../../lib/DynamixelSDK/src/
   ../../lib/ruierman_controller
+  ../../lib/hand_sdk
   ../../lib/jodell_claw_driver/include
 )
 set(biped_v2_link_dir
@@ -56,6 +57,7 @@ set(target_objs
 set(OPENSOURCE_SRC
   ${CMAKE_CURRENT_SOURCE_DIR}/biped_v2/HighlyDynamicRobot.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/common/config.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/planner/Trajectory.cc
   )
 add_library(HighlyDynamicRobot_lib STATIC ${OPENSOURCE_SRC} )
 target_include_directories(HighlyDynamicRobot_lib PUBLIC ${biped_v2_include_dir})  
@@ -93,6 +95,7 @@ set(RobotLink_LIBS
   jodell_claw_driver
   jodellTool2
   ruierman_actuatorLib
+  hand_sdkLib
   ${Boost_LIBRARIES}
   Python3::Python
   )
@@ -132,7 +135,7 @@ add_custom_command(TARGET HighlyDynamicRobot_lib POST_BUILD
 
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/CURRENT_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
 # Add the executable with the project name and the collected source files
-add_executable(kuavoController ${CMAKE_CURRENT_SOURCE_DIR}/../../src/opensource/biped_v2/main.cc)
+add_executable(kuavoController ${CMAKE_CURRENT_SOURCE_DIR}/../../src/opensource/biped_v2/main.cc ${OPENSOURCE_SRC})
 target_link_directories(kuavoController PUBLIC ${biped_v2_link_dir})
 target_include_directories(kuavoController PUBLIC ${biped_v2_include_dir})
 
@@ -156,7 +159,7 @@ endif()
 
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/src/biped_v2)
 
-add_executable(${PROJECT_NAME}_play_back ./biped_v2/drake_play_back.cc)
+add_executable(${PROJECT_NAME}_play_back ./biped_v2/drake_play_back.cc ${OPENSOURCE_SRC})
 # target_link_directories(csv_test PUBLIC ${biped_v2_link_dir})
 # target_include_directories(csv_test PUBLIC ${biped_v2_include_dir})  
 target_link_libraries(${PROJECT_NAME}_play_back HighlyDynamicRobot_lib)

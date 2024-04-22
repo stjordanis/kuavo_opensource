@@ -22,7 +22,7 @@
     "torsoY": 0.0,
     "V_takeoff" : 1.2,
     "swing_arm": false,
-
+    "walk_swing_arm_degree":5.0,
     "imu_invert":false,
     "imu_in_torso": [0,0,0],
     "isParallelArm":false,
