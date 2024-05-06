@@ -102,6 +102,7 @@ if(DEFINED CATKIN_DEVEL_PREFIX)
     message_generation
     rospy
     geometry_msgs
+    sensor_msgs
   )
   include_directories(
     # include
@@ -115,6 +116,10 @@ if(DEFINED CATKIN_DEVEL_PREFIX)
     robotArmQVVD.msg
     robotTorsoState.msg
     robotPhase.msg
+    robotHandPosition.msg
+    robotHeadMotionData.msg
+    armTargetPoses.msg
+    robotArmPose.msg
   )
   add_service_files(
     DIRECTORY ./ros_package/srv/
@@ -124,11 +129,14 @@ if(DEFINED CATKIN_DEVEL_PREFIX)
     changeArmCtrlMode.srv
     changeAMBACCtrlMode.srv
     srvChangeJoller.srv
+    controlEndHand.srv
+    srvArmIK.srv
   )
   generate_messages(
     DEPENDENCIES
     std_msgs
     geometry_msgs
+    sensor_msgs
   )
   catkin_package(
     CATKIN_DEPENDS message_runtime
@@ -149,6 +157,8 @@ if (NOT OPENSOURCE)
   add_subdirectory_if_exists(lib/xsens_ros_mti_driver)
   add_subdirectory_if_exists(lib/motioncapture)
   add_subdirectory_if_exists(lib/ruierman_controller)
+  add_subdirectory_if_exists(lib/ruiwo_controller)
+  add_subdirectory_if_exists(lib/hand_sdk)
   add_subdirectory_if_exists(lib/jodell_claw_driver)
   add_subdirectory_if_exists(lib/DynamixelSDK)
 endif()

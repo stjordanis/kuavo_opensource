@@ -2,7 +2,9 @@
 #include <cstdint>
 namespace HighlyDynamic
 {
-#if ROBOT_VERSION_INT >= 34
+#if ROBOT_VERSION_INT >= 40
+    std::string robot_config_path = "src/biped_v2/config/kuavo_v4.0/";
+#elif ROBOT_VERSION_INT >= 34
     std::string robot_config_path = "src/biped_v2/config/kuavo_v3.4/";
 #elif ROBOT_VERSION_INT >= 33
     std::string robot_config_path = "src/biped_v2/config/kuavo_v3.3/";
@@ -77,10 +79,14 @@ namespace HighlyDynamic
             motor_name_map = {
                 {"PA100", {BIT_17_10, PA100_MC, PA100_C2T, EC_MASTER}},
                 {"PA81", {BIT_17_10, PA81_MC, PA81_C2T, EC_MASTER}},
+                {"PA72", {BIT_17_36, PA72_MC, PA72_C2T, EC_MASTER}},
+                {"PA50", {BIT_17_36, PA50_MC, PA50_C2T, EC_MASTER}},
                 {"AK10_9", {BIT_17_9, AK10_9_MC, AK10_9_C2T, EC_MASTER}},
                 {"CK", {BIT_17_36, CK_MC, CK_C2T, EC_MASTER}},
                 {"dynamixel", {BIT_17_36, CK_MC, CK_C2T, DYNAMIXEL}},
                 {"realman", {BIT_17_36, CK_MC, CK_C2T, REALMAN}},
+                {"ruiwo_elmo", {BIT_17_36, CK_MC, CK_C2T, EC_MASTER}},
+                {"ruiwo", {BIT_17_36, CK_MC, CK_C2T, RUIWO}},
                 {"PA100_20", {BIT_17_20, PA100_MC, PA100_20_C2T, EC_MASTER}}};
         std::cout << "NUM_JOINT: " << static_cast<int>(NUM_JOINT) << std::endl;
         std::vector<std::string> MOTORS_TYPE = getValue<std::vector<std::string>>("MOTORS_TYPE");
@@ -101,7 +107,8 @@ namespace HighlyDynamic
 
         std::vector<std::string> end_effector_type = RobotConfig.getValue<std::vector<std::string>>("EndEffectorType");
         std::map<std::string, EndEffectorType> end_effector_type_map = {{"none", EndEffectorType::none},
-                                                                        {"jodell", EndEffectorType::jodell}};
+                                                                        {"jodell", EndEffectorType::jodell},
+                                                                        {"qiangnao", EndEffectorType::qiangnao}};
         for (auto &name : end_effector_type)
         {
             // std::cout << "EndEffectorType: " << name << std::endl;

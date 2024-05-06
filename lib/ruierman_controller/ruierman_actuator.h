@@ -29,7 +29,7 @@ public:
 
     ~RuiErManActuator();
 
-    void initialize();
+    int initialize();
     void enable();
     void disable();
     void close();

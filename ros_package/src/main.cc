@@ -1,19 +1,29 @@
 #include <HighlyDynamicRobot.h>
 #include <ros/ros.h>
 #include <std_msgs/String.h>
+#include "std_msgs/Float64MultiArray.h"
+#include "std_msgs/Float64.h"
+
 #include <dynamic_biped/walkCommand.h>
 #include <dynamic_biped/srvChangePhases.h>
 #include <dynamic_biped/srvClearPositionCMD.h>
 #include <dynamic_biped/srvchangeCtlMode.h>
 #include <dynamic_biped/changeArmCtrlMode.h>
 #include <dynamic_biped/changeAMBACCtrlMode.h>
-#include <dynamic_biped/srvChangeJoller.h>
+#include <dynamic_biped/controlEndHand.h>
+#include <dynamic_biped/srvArmIK.h>
 
 #include <sensor_msgs/JointState.h>
 #include <dynamic_biped/robotQVTau.h>
 #include <dynamic_biped/robotTorsoState.h>
 #include <dynamic_biped/robotPhase.h>
 #include <dynamic_biped/robotArmQVVD.h>
+#include <dynamic_biped/robotHandPosition.h>
+#include <dynamic_biped/robotHeadMotionData.h>
+#include <dynamic_biped/armTargetPoses.h>
+#include <dynamic_biped/robotArmPose.h>
+
+#define TO_DEGREE (180.0 / M_PI)
 
 HighlyDynamic::HighlyDynamicRobot *robot_ptr;
 RobotState_t HDrobotState;
@@ -75,6 +85,8 @@ public:
     ros::Publisher robot_arm_q_v_vd_pub;
     ros::Publisher robot_torso_state_pub;
     ros::Publisher robot_phase_pub;
+    ros::Publisher robot_hand_position_pub;
+    ros::Publisher robot_arm_pose_pub;
 
     HDrobot_node(ros::NodeHandle &nh) : nh_(nh)
     {
@@ -90,18 +102,25 @@ public:
         robot_torso_state_pub = nh_.advertise<dynamic_biped::robotTorsoState>("robot_torso_state", 10);
 
         robot_phase_pub = nh_.advertise<dynamic_biped::robotPhase>("leju_robot_phase", 10);
+
+        robot_hand_position_pub = nh_.advertise<dynamic_biped::robotHandPosition>("robot_hand_position", 10);
+
+        robot_arm_pose_pub = nh_.advertise<dynamic_biped::robotArmPose>("robot_arm_pose", 10);
         // Subscribe to /etherCATJoint/motordata topic
 
         // Subscribe to /kuavo_arm_traj topic
         joint2_command_desired_sub = nh_.subscribe("/kuavo_arm_traj", 10, &HDrobot_node::joint2CommandDesiredCallback);
+        arm_target_poses_sub = nh_.subscribe("/kuavo_arm_target_poses", 10, &HDrobot_node::armTargetPoseCallback);
+        robot_head_motion_data_sub = nh_.subscribe("/robot_head_motion_data", 10, &HDrobot_node::robotHeadMotionDataCallback);
         // Create services and bind callback functions
         static ros::ServiceServer change_phases_service = nh.advertiseService("setPhase", changePhasesCallback);
         static ros::ServiceServer clear_position_cmd_service = nh.advertiseService("clear_position_cmd", clearPositionCMDCallback);
         static ros::ServiceServer change_ctl_mode_service = nh.advertiseService("change_ctl_mode", changeCtlModeCallback);
         static ros::ServiceServer change_arm_ctrl_mode_service = nh.advertiseService("change_arm_ctrl_mode", changeArmCtlModeCallback);
         static ros::ServiceServer change_AMBAC_ctrl_mode_service = nh.advertiseService("change_AMBAC_ctrl_mode", changeAMBACCtlModeCallback);
-        static ros::ServiceServer change_Joller_pos_service = nh.advertiseService("change_joller_position", srvChangeJollerCallback);
-    }
+        static ros::ServiceServer control_end_hand_service = nh.advertiseService("control_end_hand", controlEndHandCallback);
+        static ros::ServiceServer arm_IK_service = nh.advertiseService("arm_IK", armIKCallback);
+    }   
     //
     static bool changeArmCtlModeCallback(dynamic_biped::changeArmCtrlMode::Request &req,
                                          dynamic_biped::changeArmCtrlMode::Response &res)
@@ -170,7 +189,7 @@ public:
     static void walkCommandCallback(const dynamic_biped::walkCommand::ConstPtr &msg)
     {
         updateState();
-        if (HDrobotState.phase != P_walk)
+        if (HDrobotState.phase != P_walk && msg->mode != 2)
         {
             ROS_WARN("NOT IN P_walk STATUS, ignore P_walk Command");
             return;
@@ -181,39 +200,60 @@ public:
             ROS_WARN("Control mode does not match, msg.mode=%d | controll mode=%d", msg->mode, controlmode);
             return;
         }
-        if (msg->mode == 1) // 1: velocity control
-        {
-            ROS_INFO("Received velocity control command: [%f, %f, %f]",
-                     msg->values[0], msg->values[1], msg->values[2]);
-            robot_ptr->velocityCommand({msg->values[0], msg->values[1], msg->values[2]});
-        }
-        else // 0: position control
+        if (msg->mode == 0) // 0: position control
         {
             ROS_INFO("Received position control command: [%f, %f, %f]",
                      msg->values[0], msg->values[1], msg->values[2]);
             robot_ptr->positionCommand({msg->values[0], msg->values[1], msg->values[2]});
         }
+        else if (msg->mode == 1) // 1: velocity control
+        {
+            ROS_INFO("Received velocity control command: [%f, %f, %f]",
+                     msg->values[0], msg->values[1], msg->values[2]);
+            robot_ptr->velocityCommand({msg->values[0], msg->values[1], msg->values[2]});
+        }
+        else if (msg->mode == 2) // 2: torque control
+        {
+            if (msg->values.size() != 4)
+            {
+                ROS_INFO("Received invalid step control command!");
+                return;
+            }
+            else
+            {
+                ROS_INFO("Received step control command: [%f, %f, %f, %f]",
+                         msg->values[0], msg->values[1], msg->values[2], msg->values[3]);
+                robot_ptr->stepCommand(msg->values[0], {msg->values[1], msg->values[2], msg->values[3]});
+            }
+        }
     }
 
-    // 服务函数
-    static bool srvChangeJollerCallback(dynamic_biped::srvChangeJoller::Request &req, dynamic_biped::srvChangeJoller::Response &res)
+    static void armTargetPoseCallback(const dynamic_biped::armTargetPoses::ConstPtr &msg)
     {
-        // safe check
-        if (req.l_pos < 0 || req.l_pos > 255 || req.r_pos < 0 || req.r_pos > 255)
+        std::cout << "Received arm target poses" << std::endl;
+
+        if (msg->values.empty() || msg->times.empty() || msg->values.size() != msg->times.size() * HighlyDynamic::NUM_ARM_JOINT)
         {
-            ROS_ERROR("Invalid positions. Positions must be in the range [0, 255].");
-            res.result = false;
-            return false;
+            ROS_WARN("Invalid armTargetPoses data. Empty values or different sizes.");
+            return;
         }
 
-        Eigen::Vector2d ros_left_right_pos = {req.l_pos, req.r_pos};
+        std::vector<double> times;
+        std::vector<Eigen::VectorXd> target_poses;
+        for (int i = 0; i < msg->times.size(); i++)
+        {
+            Eigen::VectorXd pose(HighlyDynamic::NUM_ARM_JOINT);
+            for (int j = 0; j < HighlyDynamic::NUM_ARM_JOINT; j++)
+            {
+                pose[j] = msg->values[i * HighlyDynamic::NUM_ARM_JOINT + j];
+            }
+            times.push_back(msg->times[i]);
+            target_poses.push_back(pose);
+        }
+        robot_ptr->changeArmPoses(times, target_poses);
+        return;
+    }
 
-        robot_ptr->SetsetEndEffectors(ros_left_right_pos);
-
-        res.result = true;
-        return true;
-    }   
-    
     // 回调函数处理接收到的 /etherCATJoint/motordata 消息
     static void joint2CommandDesiredCallback(const sensor_msgs::JointState::ConstPtr &msg)
     {
@@ -243,7 +283,7 @@ public:
             // targetRosPosition[5] = msg->position[5] ;
 
             // 调用 setROSArmPose
-            robot_ptr->rosSetMoveitMotr(targetRosPosition);
+            robot_ptr->setROSArmPose(targetRosPosition);
         }
         else
         {
@@ -251,10 +291,99 @@ public:
         }
     }
 
+    static void robotHeadMotionDataCallback(const dynamic_biped::robotHeadMotionData::ConstPtr &msg)
+    {
+        // Check if the message has the correct number of elements
+        if (msg->joint_data.size() == 2)
+        {
+            if (msg->joint_data[0] < -30 || msg->joint_data[0] > 30 || msg->joint_data[1] < -25 || msg->joint_data[1] > 25)
+            {
+                ROS_WARN("Invalid robot head motion data. Joint data must be in the range [-30, 30] and [-25, 25].");
+                return;
+            }
+            ROS_INFO("Received robot head motion data joint_data: [%f, %f]", msg->joint_data[0], msg->joint_data[1]);
+
+            robot_ptr->setHeadJointData(msg->joint_data);
+        }
+        else
+        {
+            ROS_WARN("Invalid robot head motion data. Expected 2 elements, but received %lu elements.", msg->joint_data.size());
+        }
+    }
+
+    static bool controlEndHandCallback(dynamic_biped::controlEndHand::Request &req,
+                                       dynamic_biped::controlEndHand::Response &res)
+    {
+        if (req.left_hand_position.size() != 6 || req.right_hand_position.size() != 6)
+        {
+            ROS_ERROR("Invalid hand positions size. Both left and right hand positions must have size 6.");
+            res.result = false;
+            return false;
+        }
+
+        auto isInRange = [](const std::vector<uint8_t> &positions)
+        {
+            return std::all_of(positions.begin(), positions.end(), [](uint8_t pos)
+                               { return pos >= 0 && pos <= 100; });
+        };
+
+        if (!isInRange(req.left_hand_position) || !isInRange(req.right_hand_position))
+        {
+            ROS_ERROR("Invalid hand positions value. All positions value must be in the range [0, 100].");
+            res.result = false;
+            return false;
+        }
+
+        Eigen::VectorXd left_right_pos(12);
+        for (int i = 0; i < 6; i++)
+        {
+            left_right_pos[i] = req.left_hand_position[i];
+            left_right_pos[i + 6] = req.right_hand_position[i];
+        }
+
+        robot_ptr->setEndhand(left_right_pos);
+
+        res.result = true;
+        return true;
+    }
+
+    static bool armIKCallback(dynamic_biped::srvArmIK::Request &req,
+                              dynamic_biped::srvArmIK::Response &res)
+    {
+        if (req.left_arm_pose.size() != 7 || req.right_arm_pose.size() != 7)
+        {
+            ROS_ERROR("Invalid arm pose size. Both left and right arm pose must have size 7.");
+            return false;
+        }
+
+        int joint_state_size = 14;
+        int single_arm_pose_size = 7;
+        Eigen::VectorXd arm_xyzrpy(single_arm_pose_size * 2);
+        Eigen::VectorXd arm_joint_state(joint_state_size);
+        for (int i = 0; i < single_arm_pose_size; i++)
+        {
+            arm_xyzrpy[i] = req.left_arm_pose[i];
+            arm_xyzrpy[i + single_arm_pose_size] = req.right_arm_pose[i];
+        }
+
+        robot_ptr->armCoMIK(arm_xyzrpy, arm_joint_state);
+        sensor_msgs::JointState joint_state;
+        joint_state.header.stamp = ros::Time::now();
+        joint_state.position.resize(joint_state_size);
+        for (int i = 0; i < joint_state_size; i++)
+        {
+            joint_state.position[i] = arm_joint_state[i] * TO_DEGREE;
+        }
+        res.joint_state = joint_state;
+        return true;
+    }
+
 private:
     ros::NodeHandle nh_;
     ros::Subscriber CMD_sub;
     ros::Subscriber joint2_command_desired_sub;
+    ros::Subscriber arm_target_poses_sub;
+    ros::Subscriber robot_head_motion_data_sub;
 };
 
 void resizeAndCopyVector(const Eigen::VectorXd &source, std::vector<double> &destination)
@@ -286,7 +415,6 @@ void ros_publish_robot_arm_q_v_vd(const RobotState_t &state_est, const ros::Publ
 
     robot_ros_publisher.publish(msg);
 }
-
 
 void ros_publish_robot_q_v_tau(const RobotState_t &state_est, const ros::Publisher &robot_ros_publisher)
 {
@@ -339,6 +467,39 @@ void publishRobotPhase(const RobotState_t &state_des, ros::Publisher &robot_phas
     robot_phase_pub.publish(robot_phase_msg);
 }
 
+void publishRobotHandPosition(ros::Publisher &robot_hand_position_pub)
+{
+    dynamic_biped::robotHandPosition robot_hand_position_msg;
+    robot_hand_position_msg.left_hand_position.resize(6);
+    robot_hand_position_msg.right_hand_position.resize(6);
+
+    auto left_right_pos = robot_ptr->getEndhand();
+
+    for (int i = 0; i < 6; i++)
+    {
+        robot_hand_position_msg.left_hand_position[i] = left_right_pos[i];
+        robot_hand_position_msg.right_hand_position[i] = left_right_pos[i + 6];
+    }
+
+    robot_hand_position_pub.publish(robot_hand_position_msg);
+}
+
+void publishRobotArmPose(ros::Publisher &robot_arm_pose_pub)
+{
+    dynamic_biped::robotArmPose robot_arm_pose_msg;
+    robot_arm_pose_msg.left_arm_pose.resize(7);
+    robot_arm_pose_msg.right_arm_pose.resize(7);
+
+    auto arm_xyzabc = robot_ptr->armFK();
+    for (int i = 0; i < 7; i++)
+    {
+        robot_arm_pose_msg.left_arm_pose[i] = arm_xyzabc[i];
+        robot_arm_pose_msg.right_arm_pose[i] = arm_xyzabc[i + 7];
+    }
+
+    robot_arm_pose_pub.publish(robot_arm_pose_msg);
+}
+
 int main(int argc, char *argv[])
 {
     ros::init(argc, argv, "HDrobot_node");
@@ -374,6 +535,10 @@ int main(int argc, char *argv[])
             publishRobotTorsoState(state_est, node.robot_torso_state_pub);
 
             publishRobotPhase(state_des, node.robot_phase_pub);
+
+            publishRobotHandPosition(node.robot_hand_position_pub);
+
+            publishRobotArmPose(node.robot_arm_pose_pub);
         }
 
         ros::spinOnce();

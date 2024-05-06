@@ -79,6 +79,24 @@ public:
         return false;
     }
 
+    // 直接修改状态机, 用于回放功能
+    virtual bool DirectChange(mainPhase_t &new_phase, FSMState *&next_FSM_ptr)
+    {
+        m_requested_phase = new_phase;
+        // do something to change phase, if need...
+        // ...
+        if (m_current_phase != m_requested_phase)
+        {
+            std::cout << "\033[34mChange main phase to \033[3;1m" << phase_name_map[m_requested_phase] << "\033[0m\n";
+            next_FSM_ptr = m_fsm_map[m_requested_phase];
+            this->Exit();
+            // if (next_FSM_ptr != nullptr)
+            //     next_FSM_ptr->Enter(state_est);
+            return true;
+        }
+        return false;
+    }
+
 protected:
     mainPhase_t m_requested_phase = P_None;
     mainPhase_t m_current_phase = P_None;

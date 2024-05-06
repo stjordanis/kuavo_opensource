@@ -14,6 +14,11 @@
 #include <filesystem>
 #include <csignal>
 #include <experimental/filesystem>
+#include <cstdio>
+#include <sstream>
+#include <cstdlib>
+#include <unistd.h>
+#include <csignal>
 
 namespace fs = std::experimental::filesystem;
 
@@ -52,6 +57,65 @@ int kbhit(void);
 void print_cpu_mask(cpu_set_t cpu_mask);
 int8_t get_cpu_mask(pid_t pid, cpu_set_t *mask);
 int8_t set_cpu_mask(pid_t pid, cpu_set_t *mask);
+
+class TeeRedirect
+{
+public:
+    TeeRedirect()
+    {
+        initializeLog();
+        start();
+    }
+
+    void start()
+    {
+        pipe = popen(("tee -i " + filename).c_str(), "w");
+        if (pipe == nullptr)
+        {
+            std::cerr << "Error opening pipe to tee, coould not redirect output to file." << std::endl;
+            return;
+        }
+
+        originalStdout = dup(fileno(stdout));
+        originalStderr = dup(fileno(stderr));
+        dup2(fileno(pipe), fileno(stdout));
+        dup2(fileno(pipe), fileno(stderr));
+    }
+
+    void finish()
+    {
+        std::cout << "终端输出日志保存到: " << filename << std::endl;
+        fflush(stdout);
+        fflush(stderr);
+        dup2(originalStderr, fileno(stderr));
+        dup2(originalStdout, fileno(stdout));
+        pclose(pipe);
+    }
+
+private:
+    std::string filename;
+    FILE *pipe;
+    int originalStdout;
+    int originalStderr;
+
+    void initializeLog()
+    {
+        auto now = std::chrono::system_clock::now();
+        auto timestamp = std::chrono::system_clock::to_time_t(now);
+        std::stringstream ss;
+        ss << std::put_time(std::localtime(&timestamp), "%Y%m%d_%H%M%S");
+        std::string timestampStr = ss.str();
+
+        filename = getUserHomeDirectory() + "/.log/log_" + timestampStr + ".txt";
+        std::cout << "终端输出日志保存到: " << filename << std::endl;
+
+        fs::path filePath(filename);
+        if (!filePath.parent_path().empty() && !fs::exists(filePath.parent_path()))
+        {
+            fs::create_directories(filePath.parent_path());
+        }
+    }
+};
 class StdoutStreamBuf : public std::streambuf
 {
 public:

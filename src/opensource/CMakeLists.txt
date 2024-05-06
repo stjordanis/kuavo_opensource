@@ -1,50 +1,52 @@
 cmake_minimum_required(VERSION 3.0.0)
-project(biped_v2 VERSION 0.1.0)
+# project(biped_v2 VERSION 0.1.0)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(biped_v2_include_dir
   ./
-  ../common
-  ../planner
-  ../hardware
-  ../estimator
-  ../controller
-  ../opensource/biped_v2
-  ../opensource/common
-  ../../lib/xsens_ros_mti_driver/src
-  ../../lib/xsens_ros_mti_driver/lib/xspublic/
-  ../../lib/Predict_Fp
-  ../../lib/Math
-  ../../lib/EC_Master/src/Common
-  ../../lib/EC_Master/src/SDK/INC 
-  ../../lib/EC_Master/src/SDK/INC/Linux
-  ../../lib/EC_Master/src/Sharelib/Common/ 
-  ../../lib/EC_Master/src/Sharelib/EcMasterDemo/
-  ../../lib/EC_Master/src/Sharelib/Linux/
-  ../../lib/motioncapture/
-  ../../lib/motioncapture/include/
-  ../../lib/DynamixelSDK/include/dynamixel_sdk
-  ../../lib/DynamixelSDK/src/
-  ../../lib/ruierman_controller
-  ../../lib/jodell_claw_driver/include
+  ${PROJECT_SOURCE_DIR}/src/biped_v2
+  ${PROJECT_SOURCE_DIR}/src/common
+  ${PROJECT_SOURCE_DIR}/src/planner
+  ${PROJECT_SOURCE_DIR}/src/hardware
+  ${PROJECT_SOURCE_DIR}/src/estimator
+  ${PROJECT_SOURCE_DIR}/src/controller
+  ${PROJECT_SOURCE_DIR}/src/opensource/biped_v2
+  ${PROJECT_SOURCE_DIR}/src/opensource/common
+  ${PROJECT_SOURCE_DIR}/lib/xsens_ros_mti_driver/src
+  ${PROJECT_SOURCE_DIR}/lib/xsens_ros_mti_driver/lib/xspublic/
+  ${PROJECT_SOURCE_DIR}/lib/Predict_Fp
+  ${PROJECT_SOURCE_DIR}/lib/Math
+  ${PROJECT_SOURCE_DIR}/lib/EC_Master/src/Common
+  ${PROJECT_SOURCE_DIR}/lib/EC_Master/src/SDK/INC 
+  ${PROJECT_SOURCE_DIR}/lib/EC_Master/src/SDK/INC/Linux
+  ${PROJECT_SOURCE_DIR}/lib/EC_Master/src/Sharelib/Common/ 
+  ${PROJECT_SOURCE_DIR}/lib/EC_Master/src/Sharelib/EcMasterDemo/
+  ${PROJECT_SOURCE_DIR}/lib/EC_Master/src/Sharelib/Linux/
+  ${PROJECT_SOURCE_DIR}/lib/motioncapture/
+  ${PROJECT_SOURCE_DIR}/lib/motioncapture/include/
+  ${PROJECT_SOURCE_DIR}/lib/DynamixelSDK/include/dynamixel_sdk
+  ${PROJECT_SOURCE_DIR}/lib/DynamixelSDK/src/
+  ${PROJECT_SOURCE_DIR}/lib/ruierman_controller
+  ${PROJECT_SOURCE_DIR}/lib/hand_sdk
+  ${PROJECT_SOURCE_DIR}/lib/jodell_claw_driver/include
+  ${PROJECT_SOURCE_DIR}/lib/ruiwo_controller/
+  ${PROJECT_SOURCE_DIR}/lib/hand_sdk
 )
+
 set(biped_v2_link_dir
-../../lib/xsens_ros_mti_driver/lib/xspublic/xscontroller
-../../lib/xsens_ros_mti_driver/lib/xspublic/xscommon
-../../lib/xsens_ros_mti_driver/lib/xspublic/xstypes
-../../lib/
-../../lib/jodell_claw_driver/lib
-../../lib/EC_Master/src/SDK/LIB/Linux/x64/
-../../lib/motioncapture/lib/
+${PROJECT_SOURCE_DIR}/lib/xsens_ros_mti_driver/lib/xspublic/xscontroller
+${PROJECT_SOURCE_DIR}/lib/xsens_ros_mti_driver/lib/xspublic/xscommon
+${PROJECT_SOURCE_DIR}/lib/xsens_ros_mti_driver/lib/xspublic/xstypes
+${PROJECT_SOURCE_DIR}/lib/
+${PROJECT_SOURCE_DIR}/lib/jodell_claw_driver/lib
+${PROJECT_SOURCE_DIR}/lib/EC_Master/src/SDK/LIB/Linux/x64/
+${PROJECT_SOURCE_DIR}/lib/motioncapture/lib/
 )
 set(target_objs
-  # $<TARGET_OBJECTS:pb_controller_obj>
-  # $<TARGET_OBJECTS:plantIK_obj>
-  # $<TARGET_OBJECTS:Predict_Fp_obj>
-  ${CMAKE_CURRENT_SOURCE_DIR}/../controller/pb_controller.cc.o
-  ${CMAKE_CURRENT_SOURCE_DIR}/../planner/plantIK.cc.o
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/Predict_Fp/Predict_Fp.cpp.o
+  ${PROJECT_SOURCE_DIR}/src/controller/pb_controller.cc.o
+  ${PROJECT_SOURCE_DIR}/src/planner/plantIK.cc.o
+  ${PROJECT_SOURCE_DIR}/lib/Predict_Fp/Predict_Fp.cpp.o
 )
 
 # add_library(pb_controller_obj OBJECT ../common/pb_controller.cc)
@@ -58,8 +60,11 @@ set(OPENSOURCE_SRC
   ${CMAKE_CURRENT_SOURCE_DIR}/common/config.cpp
   )
 add_library(HighlyDynamicRobot_lib STATIC ${OPENSOURCE_SRC} )
-target_include_directories(HighlyDynamicRobot_lib PUBLIC ${biped_v2_include_dir})  
+
+target_include_directories(HighlyDynamicRobot_lib PUBLIC ${biped_v2_include_dir})
+
 target_link_directories(HighlyDynamicRobot_lib PUBLIC ${biped_v2_link_dir})
+
 set(RobotLink_LIBS 
   hardware
   planner
@@ -93,6 +98,8 @@ set(RobotLink_LIBS
   jodell_claw_driver
   jodellTool2
   ruierman_actuatorLib
+  ruiwo_actuatorLib
+  hand_sdkLib
   ${Boost_LIBRARIES}
   Python3::Python
   )
@@ -103,8 +110,6 @@ if(OPENSOURCE)
   ncurses
   )
 endif()
-
-message(STATUS "Dumping robotlink_libs: ${RobotLink_LIBS}")
 
 if(DEFINED CATKIN_DEVEL_PREFIX)
   target_link_libraries(HighlyDynamicRobot_lib ${RobotLink_LIBS} ${catkin_LIBRARIES})

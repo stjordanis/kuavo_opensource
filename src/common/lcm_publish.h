@@ -11,7 +11,7 @@
 #include "EcDemoApp.h"
 using JointParam_t = MotorParam_t;
 
-DECLARE_bool(log_lcm);
+DECLARE_bool(log);
 DECLARE_bool(real);
 DECLARE_bool(pub);
 extern lcm::LCM lc_instance;

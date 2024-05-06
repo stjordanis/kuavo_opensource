@@ -23,12 +23,16 @@ using json = nlohmann::json;
 #define AK70_10_MC (26.1) // 手册是 23.2
 #define PA81_MC (60)
 #define PA100_MC (110)
+#define PA72_MC (21)
+#define PA50_MC (16.8)
 #define CK_MC (18)
 
 #define AK10_9_C2T (1.26)
 #define AK70_10_C2T (1.23)
 #define PA81_C2T (1.25)
 #define PA100_C2T (1.2) // 1.2
+#define PA72_C2T (3)
+#define PA50_C2T (1.8)
 #define PA100_20_C2T (2.4)
 #define CK_C2T (2.1) // 1.4
 
@@ -49,6 +53,7 @@ namespace HighlyDynamic
         EC_MASTER,
         DYNAMIXEL,
         REALMAN,
+        RUIWO,
     };
     struct MotorInfo
     {

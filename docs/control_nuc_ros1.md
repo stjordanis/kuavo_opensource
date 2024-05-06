@@ -82,12 +82,17 @@ float64[] effort
 数据格式
 * walkCommand.msg
 ```
-# mode: 0->PositionCommand | 1->VelocityCommand
+# mode: 0->PositionCommand | 1->VelocityCommand | 2->stepCommand
 uint8 mode
 float64[] values
 ```
 
-说明：第一个值是速度控制和位置控制，目前建议使用速度控制。在速度控制里面 values 一共 3 个值，分别为 x,y 轴的行进速度，以及 yaw 角的旋转速度。如果想让机器人停下来，可以直接把机器人的主模式切换到 P_stand，或者将三个速度设置为 0
+说明：
+- mode 控制模式，0 为位置控制，1 为速度控制，2 为步态控制。目前建议使用速度控制。
+
+  - 在速度控制里面 values 一共 3 个值，分别为 x,y 轴的行进速度，以及 yaw 角的旋转速度。如果想让机器人停下来，可以直接把机器人的主模式切换到 P_stand，或者将三个速度设置为 0
+  - 在位置控制模式下, 发送目标位置指令
+  - 在单步控制模式下, 发送的 values 是四维的数组, 分别为 [num_step,x,y,yaw] , 机器人会自动进入走路状态, 以 x,y,yaw 的速度指令走 num_step 步, 走完之前没有下发递增的num_step, 将会停下来.
 
 ## leju_robot_phase
 数据格式
@@ -177,3 +182,114 @@ bool result
 - r_pos 为右手机械爪的开合位置，有效数据范围为[0, 255]
 - 若pos的输入大于255或者小于0，此时机械爪/change_joller_position服务会提示超有效范围
 
+---
+## > Assistant: 内容检查和简化后如下：
+
+# 基础环境准备
+
+1. **安装 ROS1 的 noetic 版本** - 确认 `/opt/ros/noetic/setup.bash` 文件是否存在，以验证是否已安装。
+2. **新建 ROS1 的 workspace** - 在 `~/catkin_ws/src` 下克隆 kuavo 仓库：
+   ```
+   cd ~/catkin_ws && mkdir -p src && git clone https://gitee.com/leju-robot/kuavo_opensource.git kuavo
+   ```
+3. **编译工程** - 在 `~/catkin_ws`，执行 `source ~/catkin_ws/devel/setup.bash` 并使用 `catkin_make` 编译。编译错误时请参考错误信息。
+4. **启动机器人主节点** - 成功编译后，运行 `source ~/catkin_ws/devel/setup.bash` 并使用 `roslaunch dynamic_biped highly_dynamic_robot.launch` 启动。
+
+## 依赖的库
+
+1. geometry_msgs
+
+  1.1 检查库是否安装：`rospack find geometry_msgs`。
+  
+  1.2 安装库：
+  ```
+  sudo apt-get update
+  sudo apt-get install ros-noetic-geometry-msgs
+  ```
+
+# Topics
+
+## robot_q_v_tau
+
+- **数据格式**
+  ```
+  float64[] q
+  float64[] v
+  float64[] tau
+  ```
+- **说明**：`q` 的前 4 个值为躯干四元数位置，`v` 和 `tau` 分别表示速度和力矩。
+
+## robot_torso_state
+
+- **数据格式**
+  ```
+  geometry_msgs/Vector3 torsoR
+  geometry_msgs/Vector3 torsoRd
+  geometry_msgs/Vector3 torsoRdd
+  geometry_msgs/Vector3 r
+  geometry_msgs/Vector3 rd
+  geometry_msgs/Vector3 rdd
+  ```
+- **说明**：torsoR 躯干旋转角度，torsoRd 躯干旋转速度，torsoRdd 躯干旋转加速度。
+- **说明**：r 质心旋转角度， rd 质心旋转速度， rdd 质心旋转加速度
+
+## kuavo_arm_traj
+
+- **数据格式**：参考 [sensor_msgs/JointState](https://docs.ros.org/en/api/sensor_msgs/html/msg/JointState.html)。
+- **说明**：控制手臂关节位置。目前仅使用位置信息，速度和力矩被忽略。
+
+## walkCommand
+
+- **数据格式**
+  ```
+  # mode: 0->PositionCommand | 1->VelocityCommand
+  uint8 mode
+  float64[] values
+  ```
+- **说明**：建议使用速度控制。`values` 包含 x,y 轴速度和 yaw 角速度。
+
+## leju_robot_phase
+数据格式
+* robotPhase.msg
+```
+uint8 mainPhase
+uint8 subPhase
+```
+
+- **说明**：mainPhase 机器人主状态， subPhase 机器人子状态
+
+# Services
+
+## setPhase
+
+- **数据格式**
+  ```
+  uint8 masterID
+  string stateReq
+  string subState
+  ---
+  int16 stateRes
+  ```
+- **说明**：`masterID` 通常为 0，`stateReq` 和 `subState` 分别为主状态和子状态。
+
+## change_arm_ctrl_mode
+
+- **数据格式**
+  ```
+  bool control_mode
+  ---
+  bool result
+  ```
+- **说明**：在机器人稳定站立时，通过设置 `control_mode` 为 true 来使能手臂控制模式。
+
+## change_joller_position
+数据格式
+* srvChangeJoller.srv
+```
+int32 l_pos
+int32 r_pos
+---
+bool result
+```
+- **说明** l_pos 为左手机械爪的开合位置，有效数据范围为[0, 255] . r_pos 为右手机械爪的开合位置，有效数据范围为[0, 255]
+- **说明** 若pos位置的输入大于255或者小于0，此时机械爪/change_joller_position服务会提示超有效范围

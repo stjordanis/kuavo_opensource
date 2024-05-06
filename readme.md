@@ -38,7 +38,7 @@
 
 - --real  运行在真实机器人上，实物上需要使用root权限运行
 - --cali  校准模式(只在实物上使用)，运行校准模式，机器人全身电机回零，用于观察零位是否正确
-- --log_lcm  开启lcm日志记录，默认关闭，开启之后会将每个时刻(精确到0.1ms)所有状态量记录到一个`lcm_log.bin`中，通过bin2csv可以转换为csv格式
+- --log  开启lcm日志记录，默认关闭，开启之后会将每个时刻(精确到0.1ms)所有状态量记录到一个`lcm_log.bin`中，通过bin2csv可以转换为csv格式
 
 `bin2csv`程序允许传入需要转换的二进制日志文件的路径，和输出的csv文件名。
 - 不指定参数时，默认使用最近运行`kuavoController`保存到`/tmp/lcm_log.bin`的日志文件。
@@ -58,7 +58,8 @@
     - 按下 j 键, 进入跳跃状态
     - 按下 p 键, 进入下蹲状态
     - 按下 h 和 k 键, 控制手爪开合(需要实物支持)
-    - 按下数字键 1,2,3..., 执行对应配置文件(src/biped_v2/config/<ROBOT_VERSION>/pose.csv)中的第n个动作
+    - 按下数字键 1,2,3...7, 执行对应配置文件(src/biped_v2/config/<ROBOT_VERSION>/pose_hand_arm.csv)中的第n个动作
+    - 按下数字键 8，9 执行对应配置文件(src/biped_v2/config/<ROBOT_VERSION>/pose.csv)中的对应组合动作
 - 走路状态下
     - 默认进入行走时是速度控制模式, 机器人进行原地踏步
     - 按 w,a,s,d 控制机器人前后左右移动, 
@@ -106,6 +107,34 @@
  2.6 退出步态模式为按下 c 键，此时机器人会重置移动速度，并退出步态模式，回复站立。（注意！此时不能直接使用 Ctrl+C 退出程序，否则机器人所有关节突然解除控制会产生比较大的惯性拉坏吊架的钢丝，导致机器人跌倒损坏）
  
  2.7 结束调试，按下 p 键，机器人会缩起双腿，使用吊架放下机器人，直到机器人缩起之后的脚底距离地面 2 CM 左右。 按下 Ctrl+C 退出程序。
+ 
+###### 机器人保持站立的示例程序
+
+源码路径: `src/demos/stand/`
+编译之后生成的可执行文件：`dynamic_biped_demo_stand`
+可执行文件的使用方法: 在 build 目录下执行 `sudo ./src/demos/stand/dynamic_biped_demo_stand`, 如果是在实物运行需要加 `--real` 的参数，即: `sudo ./src/demos/stand/dynamic_biped_demo_stand --real`
+
+####### 源码说明
+```
+.
+├── CMakeLists.txt
+└── src
+    ├── main.cc   入口程序
+    ├── StandRobot.cc 整体的框架，里面包含了状态估计，运动控制的调用
+    ├── StandRobot.h
+    ├── StandStateEstimation.cpp 状态故常模块
+    ├── StandStateEstimation.h
+    ├── StandTrajectory.cc  运动控制模块
+    ├── StandTrajectory.h
+    ├── StateMachineError.cc 机器人状态机的实现：处理错误的状态
+    ├── StateMachineError.h
+    ├── StateMachineStand.cc  机器人状态机的实现：处理站立的状态
+    └── StateMachineStand.h
+
+```
+
+补充: 在 `StandTrajectory::StandTrajectory` 里面有一个基本的说明，在这个站立的示例程序里面用户可以尝试修改机器人躯干的 Yaw , Pictch 角来观察机器人的变化，可以修改执行距离地面的高度来调整机器人的站立高度。请注意，参数的改动需要先在仿真环境中运行一下，以及运行的时候需要把机器人的保护绳挂在支架上。因为如果修改的数字过大导致逆解失败程序可能会崩溃导致机器人倒地。
+
 
 ##### 手臂舵机零点校正程序（如果重装系统，或者手臂的零点损坏可以按照以下的方法重新校正)
 
@@ -233,7 +262,7 @@ sudo udevadm trigger
 
 ## 2.log 转换工具 {#转换工具}
 
-   - 执行程序时添加`--log_lcm`参数之后, 会将通过`lcm_publish.h`中定义的`lcmPublishValue`,`lcmPublishVector`,`lcmPublishState`等接口发布的数据以比较精确的时间戳(0.1ms)记录到`xxx.bin`文件中
+   - 执行程序时添加`--log`参数之后, 会将通过`lcm_publish.h`中定义的`lcmPublishValue`,`lcmPublishVector`,`lcmPublishState`等接口发布的数据以比较精确的时间戳(0.1ms)记录到`xxx.bin`文件中
      - 日志会先存放于内存映射目录的`/tmp/lcm_log.bin`中, 结束时会将最后一段数据写入/var/lcm_log/目录下, 以时间戳命名。
    - 使用`./src/biped_v2/bin2csv`程序可以将 bin 格式的日志转换为 csv 格式，方便使用 plotjuggler 等工具进行可视化。
      - 用法:
@@ -365,7 +394,19 @@ cmake ..
 
 sudo make install
 
-```
+2.log 转换工具
+
+   - 执行程序时添加`--log`参数之后, 会将通过`lcm_publish.h`中定义的`lcmPublishValue`,`lcmPublishVector`,`lcmPublishState`等接口发布的数据以比较精确的时间戳(0.1ms)记录到`xxx.bin`文件中
+     - 日志会先存放于内存映射目录的`/tmp/lcm_log.bin`中, 结束时会将最后一段数据写入/var/lcm_log/目录下, 以时间戳命名。
+   - 使用`./src/biped_v2/bin2csv`程序可以将 bin 格式的日志转换为 csv 格式，方便使用 plotjuggler 等工具进行可视化。
+     - 用法:
+      ```shell
+      sudo ./src/biped_v2/bin2csv -i <binFilePath> -o <csvFilePath> -s <start_count> -t <end_count>
+      ```
+     - 其中的一个或者多个参数可以不指定
+     - 直接执行时会将最后一段数据转换为csv格式, 不传递任何参数时默认是转换最后一次执行输出到`/tmp/lcm_log.bin`中的日志
+     - 如日志文件很大时, 可以使用`-s`和`-t`参数指定转换的起始和结束位置, 避免转换整个文件, 节省时间和空间。
+   - 
 
 
 

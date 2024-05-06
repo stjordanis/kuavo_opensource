@@ -17,3 +17,5 @@ if(NOT OPENSOURCE)
 endif()
 # add_subdirectory_if_exists(biped_v2)
 add_subdirectory_if_exists(opensource)
+
+add_subdirectory_if_exists(demos)
