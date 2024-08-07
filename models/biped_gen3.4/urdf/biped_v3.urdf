@@ -6,7 +6,7 @@ Stephen Brawner (brawner@gmail.com)
 <robot name="biped_v3">
   <link name="torso">
     <inertial>
-      <origin xyz="-0.03010494863 -1.4589E-07 0.16945" rpy="0 0 0" />
+      <origin xyz="-0.03510494863 -1.4589E-07 0.16945" rpy="0 0 0" />
       <mass value="33.1207795" />
       <inertia ixx="0.07055" ixy="4.2719E-07" ixz="0.0010388" iyy="0.059777" iyz="5.4507E-06" izz="0.063237" />
     </inertial>

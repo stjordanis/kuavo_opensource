@@ -38,6 +38,7 @@ double anglelimit_pi(double angle);
 Eigen::Vector3d rotationMatrixToEulerAngles(Eigen::Matrix3d &R);
 Eigen::Matrix3d eulerAnglesToRotationMatrix(Eigen::Vector3d &theta);
 
+Quat keepYaw_Q2Q(Quat &quat);
 Quat negativeYaw_Quat2(Quat &quat);
 Quat negativeYaw_R2Q(Mat3 &Rbody);
 Mat3 negativeYaw_R2R(Mat3 &Rbody);

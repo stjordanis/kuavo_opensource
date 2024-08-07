@@ -67,8 +67,15 @@ typedef enum
 typedef enum
 {
   PositionControl,
-  VelocityControl
+  VelocityControl,
+  StepControl
 } controlMode_t;
+
+static std::map<controlMode_t, std::string> controlMode_name_map = {
+    {PositionControl, "位置控制"},
+    {VelocityControl, "速度控制"},
+    {StepControl, "单步控制"}
+};
 
 typedef struct
 {
@@ -85,7 +92,8 @@ typedef struct
 enum EndEffectorType
 {
   none,
-  jodell
+  jodell,
+  qiangnao
 };
 
 typedef struct
@@ -94,7 +102,18 @@ typedef struct
   double position;
   double velocity;
   double torque;
+  Eigen::VectorXd hand_position;
+  Eigen::VectorXd hand_velocity;
+  Eigen::VectorXd hand_torque;
 } EndEffectorInfo;
+
+// typedef struct
+// {
+//   EndEffectorType type;
+//   Eigen::VectorXd hand_position;
+//   Eigen::VectorXd hand_velocity;
+//   Eigen::VectorXd hand_torque;
+// } EndhandEffectorInfo;
 
 typedef struct // TODO: remove old EstimateState_t
 {
@@ -158,5 +177,7 @@ typedef struct : public EstimateState_t
   Eigen::Matrix<double, 9, 1> contact_force;
   std::vector<int> control_modes;
   std::vector<EndEffectorInfo> end_effectors;
-
+  // std::vector<EndhandEffectorInfo> endhand_effectors;
+  
+  Eigen::Vector2d head_joint_q;
 } RobotState_t;

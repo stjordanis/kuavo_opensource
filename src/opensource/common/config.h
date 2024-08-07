@@ -16,6 +16,7 @@ using json = nlohmann::json;
 #define BIT_17 (1 << 17)
 #define BIT_17_9 (BIT_17 * 9)
 #define BIT_17_10 (BIT_17 * 10)
+#define BIT_17_18 (BIT_17 * 18)
 #define BIT_17_20 (BIT_17 * 20)
 #define BIT_17_36 (BIT_17 * 36)
 
@@ -23,12 +24,17 @@ using json = nlohmann::json;
 #define AK70_10_MC (26.1) // 手册是 23.2
 #define PA81_MC (60)
 #define PA100_MC (110)
+#define PA72_MC (21)
+#define PA50_MC (16.8)
 #define CK_MC (18)
 
 #define AK10_9_C2T (1.26)
 #define AK70_10_C2T (1.23)
 #define PA81_C2T (1.25)
 #define PA100_C2T (1.2) // 1.2
+#define PA72_C2T (3)
+#define PA50_C2T (1.8)
+#define PA100_18_C2T (2.0)
 #define PA100_20_C2T (2.4)
 #define CK_C2T (2.1) // 1.4
 
@@ -40,15 +46,14 @@ namespace HighlyDynamic
 
     extern uint16_t nq_f, nv_f;
     extern uint8_t NUM_ARM_JOINT, NUM_JOINT;
-    extern std::string robot_config_path;
-    extern float ROBOT_VERSION;
-    extern std::filesystem::path CURRENT_SOURCE_DIR;
+    constexpr auto Setzero_script = "Setzero.sh";
 
     enum MotorDriveType
     {
         EC_MASTER,
         DYNAMIXEL,
         REALMAN,
+        RUIWO,
     };
     struct MotorInfo
     {
@@ -80,14 +85,19 @@ namespace HighlyDynamic
         json data;
         std::string filename_;
         bool is_loaded{false};
-
-    public:
-        JSONConfigReader(const std::string &filename);
-        JSONConfigReader();
+        int  motor_info_config_size_{0};    // the value is sizeof array "MOTOR_TYPE" from the config file.
+                                            // Not the NUM_JOINT  
+    private:
+        JSONConfigReader()=default;
+        JSONConfigReader(const JSONConfigReader&)=delete;
+        JSONConfigReader& operator=(const JSONConfigReader&)=delete;
         void configHardware();
+        bool load(const std::string &filepath);
+        
+    public:
+        static JSONConfigReader& getInstance();
+        bool init(const std::string &filepath);
         void reload();
-        void load(const std::string &filename);
-        static JSONConfigReader *getInstance(const std::string &filename);
         Eigen::VectorXd getEigenVector(const std::string &key);
         template <typename T>
         T getValue(const std::string &key)
@@ -116,8 +126,21 @@ namespace HighlyDynamic
         {
             return data[key];
         }
+
+        int get_motor_info_config_size()
+        {
+            return motor_info_config_size_;
+        }
+        int getMotorCountByType(MotorDriveType type);
+        int getRuiwoMotorCount();
+        int getRealmanMotorCount();
+        int getDynamixelMotorCount();
+        int getEcMasterMotorCount();
+        int getJointCount();
+        int getArmJointCount();
+        int getMotorCount();
     };
-    extern JSONConfigReader RobotConfig;
+    #define RobotConfig JSONConfigReader::getInstance()
     extern std::vector<std::string> end_frames_name;
     extern std::vector<std::string> contact_frames_name;
 

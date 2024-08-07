@@ -1,5 +1,49 @@
 # Q&A
 
+- 重装相关的环境
+
+机器出厂时会安装好相应的开发和运行环境。如果在使用过程中损坏了主机的运行环境有以下两种方法来恢复。注意：请定期，及时保存自己的代码，当环境损坏之后可能之前编辑的代码会丢失。
+
+ 1. 使用官方的 Clonezilla 镜像，直接恢复系统到出厂的状态
+ 2. 使用以下重装环境的方法，重新安装环境
+
+- 安装依赖的相关环境
+
+    1. 安装第三方依赖库 sudo apt-get install liblcm-dev libgflags-dev libgoogle-glog-dev liblmdb-dev ， 如果出现网络问题，可以使用  https://mirrors.tuna.tsinghua.edu.cn/help/ubuntu/ 清华大学的加速源进行替换。
+
+    2. drake
+
+    根据[官方文档](https://drake.mit.edu/apt.html)进行，我们发布的软件版本，需要指定安装 1.19.0-1 版本的 drake。
+
+    ```bash
+    # ..先根据官方文档配置好 apt 源
+    sudo apt install drake-dev=1.19.0-1
+    ```
+
+    > 注意最后一步需要将 drake 安装路径添加到 PATH 环境变量中, 可以根据自己使用的终端类型配置到 ~/.bashrc 或 ~/.zshrc 中。
+
+    3. 安装 mpc 依赖 cassie_alip_mpc 
+
+    参考 https://github.com/UMich-BipedLab/cassie_alip_mpc 中的 Build Install Casadi by Source and Install 章节安装
+
+    3.1 clone: git clone https://github.com/UMich-BipedLab/cassie_alip_mpc.git
+
+    3.2 执行以下命令
+
+    ```bash 
+    cd external_packages/casadi
+
+    sudo apt-get install gcc g++ gfortran git cmake liblapack-dev pkg-config --install-recommends
+
+    mkdir build
+    cd build
+
+    cmake ..
+
+    sudo make install
+
+    ```
+
 - 编译报错找不到lcm, findpackage()不能找到
 
     原因:可能是lcm库没有正确安装

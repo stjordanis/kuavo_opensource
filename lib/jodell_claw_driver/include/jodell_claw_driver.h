@@ -32,7 +32,15 @@ namespace ClawController
     {
     public:
         ClawController();
-        void init(const std::string &port_name = "/dev/claw_serial");
+
+        /// @brief 初始化 jodell claw
+        /// @param port_name 端口名称
+        /// @return  = 0: success
+        ///          > 0: 1 rserialOperation fail
+        ///               2 thread start failed
+        ///          < 0: -errno, 系统错误码的负数值，可通过 strerror() 函数获取错误信息   
+        int init(const std::string &port_name = "/dev/claw_serial");
+
         void controlClaw(ClawType claw_type, int pos, int speed = 100, int tau = 100);
 
         void getClawStatus(ClawType claw_type);

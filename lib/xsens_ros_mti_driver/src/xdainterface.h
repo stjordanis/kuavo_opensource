@@ -42,12 +42,17 @@
 struct XsControl;
 struct XsDevice;
 
+#define IMU_ACC_INDEX 0
+#define IMU_GYROHR_INDEX 1
+#define IMU_QUAT_INDEX 2
+
 typedef struct
 {
 	std::vector<std::pair<struct timespec, Eigen::Vector3d>> acc_raw_vector;
 	std::vector<std::pair<struct timespec, Eigen::Vector3d>> acc_vector;
 	std::vector<std::pair<struct timespec, Eigen::Vector3d>> gyro_vector;
 	std::vector<std::pair<struct timespec, Eigen::Quaterniond>> quat_vector;
+	struct timespec last_live_data_time_stamp;
 } IMUData;
 
 class PacketCallback;

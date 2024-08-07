@@ -75,10 +75,15 @@ typedef struct
   int16_t torque_actual_value;
   uint16_t status_word;
   int16_t mode_of_opration_display;
+  int32_t position_demand_raw;
+  int32_t velocity_demand_raw;
   int32_t velocity_actual_value;
-  int16_t current_actual_value;
+  int16_t torque_demand_raw;
+  uint32_t dc_link_circuit_voltage;
+  // int16_t current_actual_value;
   uint16_t error_code;
 } SlaveRead_t;
+
 
 typedef struct
 {
@@ -105,6 +110,12 @@ typedef struct
   double torqueOffset;
   double acceleration;
   uint8_t status;
+  double position_demand_trans;
+  double velocity_demand_trans;
+  double torque_demand_trans;
+  double driver_dc_voltage;
+  uint16_t status_word;
+  uint16_t error_code;
 }MotorParam_t;
 
 /*-FUNCTION DECLARATIONS-----------------------------------------------------*/
@@ -133,10 +144,12 @@ extern bool isMotorEnable(void);
 extern uint32_t getNumSlave(void);
 void setEcEncoderRange(uint32_t *encoder_range_set, uint16_t num);
 
-void motorGetCurrent(double *current_actual);
+// void motorGetCurrent(double *current_actual);
 
 /* function in EcNotification */
 void fixEmergencyRequest(const int slaveAddr,const int errorCode);
+void getMotorPositionOffset(double *offset, uint16_t len);
+void setMotorPositionOffset(double *offset, uint16_t len);
 
 #define PRINT_PERF_MEAS() ((EC_NULL != pEcLogContext) ? ((CAtEmLogging *)pEcLogContext)->PrintPerfMeas(pAppContext->dwInstanceId, 0, pEcLogContext) : 0)
 #define PRINT_HISTOGRAM() ((EC_NULL != pEcLogContext) ? ((CAtEmLogging *)pEcLogContext)->PrintHistogramAsCsv(pAppContext->dwInstanceId) : 0)

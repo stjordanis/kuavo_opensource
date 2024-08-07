@@ -1,6 +1,8 @@
 #pragma once
 
 #include <iostream>
+#include <array>
+
 #include "drake/systems/framework/leaf_system.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "actuators_interface.h"
@@ -11,8 +13,10 @@
 #include "imu_receiver.h"
 #include "config.h"
 #include "ruierman_actuator.h"
+#include "ruiwo_actuator.h"
 #include "jodell_claw_driver.h"
 #include "dynamixel_interface.h"
+#include "hand_sdk.h"
 
 typedef lcm::LCM lcm_cpp;
 namespace HighlyDynamic
@@ -22,7 +26,13 @@ namespace HighlyDynamic
 #define MOTOR_OFFSET_S (-15 * M_PI / 180)
 
   class HardwarePlant
-  {
+  {  
+    struct RuiWoJointData
+      {
+        std::vector<double> pos;
+        std::vector<double> vel;
+        std::vector<double> torque;
+      };
   public:
     HardwarePlant(drake::multibody::MultibodyPlant<double> *plant,
                   double dt = 1e-3,
@@ -30,6 +40,7 @@ namespace HighlyDynamic
                   uint16_t num_actuated = 0,
                   uint16_t nq_f = 7, uint16_t nv_f = 6);
 
+    std::vector<double> head_joint_data_;
     void Update(RobotState_t state_des, Eigen::VectorXd actuation);
     void joint2motor(const RobotState_t &state_des_, const Eigen::VectorXd &actuation, Eigen::VectorXd &cmd_out);
     void motor2joint(SensorData_t sensor_data_motor, SensorData_t &sensor_data_joint);
@@ -45,16 +56,23 @@ namespace HighlyDynamic
     int8_t PDInitialize(Eigen::VectorXd &q0);
     void writeCommand(Eigen::VectorXd cmd_r, uint32_t na_r, uint8_t control_mode);
     void endEffectorCommand(std::vector<EndEffectorInfo> &end_effector_cmd);
+    // void endhandEffectorCommand(std::vector<EndhandEffectorInfo> &end_hand_effector_cmd);
     void writeCommandbyLCM(Eigen::VectorXd cmd, uint32_t na, uint8_t control_mode);
     bool checkJointPos(JointParam_t *joint_data);
     void jointFiltering(JointParam_t *joint_data, double dt);
+    inline void SetJointVelocity(const std::vector<uint8_t> &joint_ids, std::vector<JointParam_t> &joint_data);
+    inline void SetJointTorque(const std::vector<uint8_t> &joint_ids, std::vector<JointParam_t> &joint_data);
+    inline void SetJointPosition(const std::vector<uint8_t> &joint_ids, std::vector<JointParam_t> &joint_data);
+    inline void GetJointData(const std::vector<uint8_t> &joint_ids, std::vector<JointParam_t> &joint_data);
+    void reloadZeroOffsetConfig(std::vector<double> goal_pos);
+    bool checkAndCreateTempOffsetPath();
+    bool checkAndCopyOffsetFile();
+
+    static bool hasHeadJoint();
 
   private:
-    inline void SetJointVelocity(const std::vector<uint8_t> &joint_ids,  std::vector<JointParam_t> &joint_data);
-    inline void SetJointTorque(const std::vector<uint8_t> &joint_ids,  std::vector<JointParam_t> &joint_data);
-    inline void SetJointPosition(const std::vector<uint8_t> &joint_ids,  std::vector<JointParam_t> &joint_data);
-    inline void GetJointData(const std::vector<uint8_t> &joint_ids, std::vector<JointParam_t> &joint_data);
-
+    bool initEndEffector();
+  private:
     drake::multibody::MultibodyPlant<double> *plant_;
     std::unique_ptr<drake::systems::Context<double>> plant_context_;
     int32_t na_;
@@ -98,10 +116,12 @@ namespace HighlyDynamic
     std::vector<double> c2t_coeff;
     std::vector<double_t> min_joint_position_limits;
     std::vector<double_t> max_joint_position_limits;
-
+    // std::vector<int> qiangnao_port;
 
     uint32_t num_joint;
     bool has_end_effectors{false};
+    
+    std::array<EndEffectorType, 2> end_effector_types_{EndEffectorType::none, EndEffectorType::none};
   };
   void Invt_imudate(SensorData_t &sensor_data);
 

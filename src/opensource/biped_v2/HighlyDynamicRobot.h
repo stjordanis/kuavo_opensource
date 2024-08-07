@@ -69,10 +69,8 @@ namespace HighlyDynamic
         bool listening_keyboard = true;
         bool AMBAC_ready = false;
 
-
         RobotState_t state_des;
         RobotState_t state_est;
-
 
         HighlyDynamicRobot();
         void initialState(multibody::MultibodyPlant<double> *plant, systems::Context<double> *plant_context,
@@ -86,6 +84,11 @@ namespace HighlyDynamic
         void simStep(RobotState_t &state_des_, Eigen::VectorXd &actuation_);
         virtual int doMainAsync(int argc, char *argv[]);
         void getRobotState(RobotState_t &robotState);
+
+        void setCenterOfMass(const Eigen::Vector3d& new_com, double time = 0.0f, double acc = 0.05f);
+        void getCenterOfMass(Eigen::Vector3d& com_out) const;
+
+        void updateHeadJointData();
         void changePhases(mainPhase_t new_phase = P_None, subPhase_t new_sub_phase = sub_phase_none)
         {
             traj_ptr->changePhases(new_phase, new_sub_phase);
@@ -102,14 +105,17 @@ namespace HighlyDynamic
         {
             traj_ptr->velocityCommand(velocityData);
         }
+        void stepCommand(uint32_t num_step, Eigen::Vector3d step_cmd)
+        {
+            traj_ptr->stepCommand(num_step, step_cmd);
+        }
         void changeCtlMode(controlMode_t cm)
         {
             traj_ptr->changeCtlMode(cm);
-            std::cout << "control_mode: " << ((cm == VelocityControl) ? "速度控制" : "位置控制");
-            std::cout << "\n";
+            std::cout << "control_mode: " << controlMode_name_map[cm] << std::endl;
         }
 
-        void rosSetMoveitMotr(Eigen::VectorXd targetRosPosition)
+        void setROSArmPose(Eigen::VectorXd targetRosPosition)
         {
             traj_ptr->setROSArmPose(targetRosPosition);
         }
@@ -118,10 +124,60 @@ namespace HighlyDynamic
         {
             return traj_ptr->getCtlMode();
         }
+
+        void setEndhand(Eigen::VectorXd left_right_pos)
+        {
+            traj_ptr->setEndhand(left_right_pos);
+        }
+
+        Eigen::VectorXd getEndhand()
+        {
+            Eigen::VectorXd left_right_pos(12);
+            traj_ptr->getEndhand(left_right_pos);
+            return left_right_pos;
+        }
+        void setHeadJointData(std::vector<double> head_joint_data)
+        {
+            head_joint_data_ = head_joint_data;
+        }
+        void changeArmPoses(const std::vector<double> &times, const std::vector<Eigen::VectorXd> &targets)
+        {
+            traj_ptr->changeArmPoses(times, targets);
+        }
+        void changeHandArmPosesByConfigName(const std::string &config_name)
+        {
+            traj_ptr->changeHandArmPoses(config_name);
+        }
+        void armCoMIK(Eigen::VectorXd &arm_xyzabc, Eigen::VectorXd &arm_joint_state)
+        {
+            // q:  0, 70, 0, 0, 0, 0, 0    rpyxyz: 1.22, 0, 0, 0, 0.76768, 0.13135,   -1.22, 0, 0, 0, -0.76768, 0.13135;
+            // q: -40, 0, 0, 0, 0, 0, 0     rpyxyz: 0, -0.698, 0, 0.34, 0.264, 0.655,   0, -0.698, 0, 0.34, -0.264, 0.655;
+            // q: -90, 0, 0, 0, 0, 0, 0     rpyxyz: 0, -1.57, 0, 0.518, 0.2645, 1.071,  0, -1.57, 0, 0.518, -0.2645, 1.071;
+            // q: -90, 0, 0, -90, 0, 0, 0   rpyxyz : -3.14, 0, 3.14, 0.173, 0.264, 1.424,   -3.14159, 0, 3.14159, 0.173, -0.264, 1.423
+
+            Eigen::VectorXd all_q(33);
+            auto bool_ik = traj_ptr->armCoMIK(arm_xyzabc, all_q);
+            if (bool_ik)
+            {
+                arm_joint_state = all_q.segment(19, 14);
+            }
+        }
+
+        Eigen::VectorXd armFK()
+        {
+            Eigen::VectorXd arm_rpyxyz(12);
+            arm_rpyxyz = traj_ptr->armFK();
+            return arm_rpyxyz;
+        }
+
         RobotData queryNewestRobotStates();
         void switchArmCtrlMode(bool rosArmMode);
         void setAMBACReady(bool value);
         void SetsetEndEffectors(Eigen::Vector2d target_left_right_pos);
+
+        const SensorData_t& getSensorData();
+
+        bool hasHeadJoint();
 
     protected:
         virtual void state_thread_func();
@@ -133,7 +189,7 @@ namespace HighlyDynamic
         std::thread state_thread;
         std::thread control_thread;
         std::thread plan_thread;
-        
+
         std::thread keyboard_thread;
         HighlyDynamic::Trajectory *traj_ptr;
         HighlyDynamic::WholeBodyController *wbc_ptr;
@@ -175,7 +231,13 @@ namespace HighlyDynamic
         Eigen::VectorXd arms_init_pos;
         ThreadSync start_sync_, end_sync_;
 
-        ThreadSafeDataStorage* robot_state_storge;
+        ThreadSafeDataStorage *robot_state_storge;
+
+        std::vector<double> head_joint_data_;
+
+        SensorData_t    sensor_data_;
+        std::mutex      mtx_sensor_data_;
+    
     };
 
     extern HighlyDynamicRobot *global_robot_ptr;

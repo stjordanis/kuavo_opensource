@@ -4,14 +4,11 @@
 #include <utils.h>
 #include <gflags/gflags.h>
 #include <lcm/lcm-cpp.hpp>
-#include "lcm_std_msgs/Float64.hpp"
-#include "lcm_std_msgs/Float64MultiArray.hpp"
-#include "drake/common/eigen_types.h"
-#include "drake/math/rigid_transform.h"
 #include "EcDemoApp.h"
+
 using JointParam_t = MotorParam_t;
 
-DECLARE_bool(log_lcm);
+DECLARE_bool(log);
 DECLARE_bool(real);
 DECLARE_bool(pub);
 extern lcm::LCM lc_instance;

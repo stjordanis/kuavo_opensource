@@ -62,16 +62,25 @@ public:
     void logData(const std::string &name, const Eigen::VectorXd &data);
     void bin2Plotjuggler(const std::string &bin_file, const std::string &csv_file, int start_index = -1, int end_index = -1);
 
+    inline void set_timestamp(const std::time_t &timestamp){
+        this->timestamp = timestamp;
+    }
+
+    inline void set_logfilename_suffix(const std::string &suffix){
+        this->logfilename_suffix = suffix;
+    }
+
 private:
     int file_count = 0;
     int max_count = 5;      // 保存到/tmp目录的日志最大数量
-    int max_save_count = 2; // 最后合并存储进硬盘的日志数量, 存储总大小会是 max_save_count * max_file_size
+    int max_save_count = 4; // 最后合并存储进硬盘的日志数量, 存储总大小会是 max_save_count * max_file_size
     uint64_t max_file_size; // 100MB
     std::ofstream logBinFile;
     std::ofstream logFile;
     std::string log_filename;
     std::string bin_log_filename;
     std::string origin_filename;
+    std::string logfilename_suffix;
     std::thread logThread, binLogThread;
     std::condition_variable cv;
     std::map<std::string, std::map<std::string, double>> data;
@@ -84,6 +93,7 @@ private:
     std::mutex bufferMutex;
     std::mutex logMutex;
     std::vector<std::string> new_headernames;
+    std::time_t timestamp;
     void writBinaryData(std::vector<rawLogEntry> &buffer);
 
     void logThreadFunc();

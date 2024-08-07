@@ -55,6 +55,7 @@ class WHJ30Tools:
 
         except Exception as exc:
             exc_msg = str(exc)
+            print("CAN (ruiwo,ruierman 电机相关) 通信设备打开失败: " + exc_msg)
         return exc_msg
 
     def close_canbus(self):

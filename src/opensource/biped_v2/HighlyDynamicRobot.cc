@@ -2,7 +2,8 @@
 #ifdef KUAVO_CATKIN_MAKE_OPTION
 #include <ros/ros.h>
 #endif
-
+#include "git_describe.h"
+#include "env_utils.h"
 
 DEFINE_double(dt, 1e-3, "Control period.");
 DEFINE_double(realtime, 1.0, "Target realtime rate.");
@@ -12,13 +13,15 @@ DEFINE_bool(real, false, "Run real");
 DEFINE_bool(cali, false, "Run calibration");
 DEFINE_uint32(traj, 0, "Soure traj");
 DEFINE_bool(play_back_mode, false, "play_back_mode, load play_path");
-DEFINE_bool(log_lcm, false, "Record lcm to log file");
+DEFINE_bool(log_lcm, true, "Record log to log file");
+DEFINE_bool(log, false, "the same as log_lcm");
 
 DEFINE_bool(rm_est, false, "Remove state estimation");
 DEFINE_bool(pub_real, false, "pub real state in sim while !rm_est");
 DEFINE_bool(cal_time, false, "calculate time for each loop");
 DEFINE_bool(use_motion_cal, false, "use motion capture to estimate");
 DEFINE_bool(record_motion, false, "use motion capture, but only record lcm logs");
+DEFINE_bool(play, false, "play mode..");
 DEFINE_double(powerscale, 1.0, "Scale the period time for make low power cpu can simulator the control period in 1ms.");
 
 DEFINE_bool(disable_keyboard_thread, false, "Disable the keyboard thread when you want to use ROS to change the Phase");
@@ -28,6 +31,8 @@ namespace HighlyDynamic
   HighlyDynamicRobot *global_robot_ptr = nullptr;
   using namespace drake;
   std::atomic<bool> sigint_caught(false);
+  static TeeRedirect stdout_redirect;
+
   void qv_no_arm_to_arm(Eigen::VectorXd &no_arm_state, Eigen::VectorXd &with_arm_state, uint32_t nq_with_arm, uint32_t nq_no_arm)
   {
     // Eigen::VectorXd state(nq_no_arm + nv_no_arm);
@@ -55,12 +60,29 @@ namespace HighlyDynamic
     no_arm_state.segment(nq_no_arm + nv_f, 6) << with_arm_state.segment(nq_with_arm + nv_f, 6);
     no_arm_state.segment(nq_no_arm + nv_f + 6, 6) << with_arm_state.segment(nq_with_arm + n_half_f + nv_f, 6);
   }
+
+  void HighlyDynamicRobot::setCenterOfMass(const Eigen::Vector3d& new_com, double time, double acc)
+  {
+    traj_ptr->setCenterOfMass(new_com,time, acc);
+  }
+
+  void HighlyDynamicRobot::getCenterOfMass(Eigen::Vector3d& com_out) const
+  {
+    RobotData robotData = robot_state_storge->newestData();
+    RobotState_t state_est = robotData.state_est;
+    // traj_ptr->getCenterOfMass(com_out);
+    com_out = state_est.r;
+  }
+
+
   HighlyDynamicRobot::HighlyDynamicRobot() : start_sync_(WHIT_THREAD_NUM), end_sync_(WHIT_THREAD_NUM)
   {
     global_robot_ptr = this;
-    hand_param_ptr = new CSVParamLoader(robot_config_path + "pose.csv", ' ');
+    std::string pose_filepath = env_utils::GetConfigFileParentPath().append("/pose.csv");
+    hand_param_ptr = new CSVParamLoader(pose_filepath, ' ');
     arms_init_pos.resize(NUM_ARM_JOINT);
-    arms_init_pos << hand_param_ptr->GetParameter("init_hand_pos");
+    arms_init_pos << hand_param_ptr->GetParameter("init_hand_pos").segment(1, NUM_ARM_JOINT);
+    head_joint_data_.resize(2);
     if (!lc_instance.good())
     {
       std::cout << "Error: Lcm not good!\n";
@@ -68,14 +90,17 @@ namespace HighlyDynamic
     }
     std::cout << std::fixed << std::setprecision(5);
   };
-  void HighlyDynamicRobot::setAMBACReady(bool value) {
+  void HighlyDynamicRobot::setAMBACReady(bool value)
+  {
     AMBAC_ready = value;
   }
 
   void HighlyDynamicRobot::buildMultibodyPlant()
   {
-    std::string model_path = GetAbsolutePath(RobotConfig.getValue<std::string>("model_path"));
-    std::string model_with_arm_path = GetAbsolutePath(RobotConfig.getValue<std::string>("model_with_arm_path"));
+    std::string model_path = env_utils::GetConfigRootPath();
+    model_path.append("/").append(RobotConfig.getValue<std::string>("model_path"));
+    std::string model_with_arm_path = env_utils::GetConfigRootPath();
+    model_with_arm_path.append("/").append(RobotConfig.getValue<std::string>("model_with_arm_path"));
 
     g_plant = builder.AddSystem<multibody::MultibodyPlant>(FLAGS_dt);
     g_plant_with_arm = builder.AddSystem<multibody::MultibodyPlant>(FLAGS_dt);
@@ -171,43 +196,125 @@ namespace HighlyDynamic
   void HighlyDynamicRobot::real_init_wait()
   {
     std::vector<double> inital_pos(NUM_JOINT, 0);
+    std::vector<double> ready_inital_pos(NUM_JOINT, 0);
+    ready_inital_pos[0] = 0;
+
+    ready_inital_pos[2] = -1.3 * (180.0 / M_PI);
+    ready_inital_pos[3] = 1.6 * (180.0 / M_PI);
+    // left ankle
+    ready_inital_pos[4] = -0.3 * TO_DEGREE; // 适用二代踝关节顺序
+
+    ready_inital_pos[6] = -0;
+
+    ready_inital_pos[8] = -1.3 * (180.0 / M_PI);
+    ready_inital_pos[9] = 1.6 * (180.0 / M_PI);
+    // right ankle
+    ready_inital_pos[10] = -0.3 * TO_DEGREE;
+
+    for (int i = 0; i < NUM_ARM_JOINT; i++)
+    {
+      ready_inital_pos[LEGS_TOTEL_JOINT + i] = arms_init_pos[i];
+    }
+    bool ready_to_feedback = false;
+
     if (!FLAGS_cali)
     {
-      inital_pos[0] = 0;
-
-      inital_pos[2] = -1.3 * (180.0 / M_PI);
-      inital_pos[3] = 1.6 * (180.0 / M_PI);
-      // left ankle
-      inital_pos[4] = -0.3 * TO_DEGREE; // 适用二代踝关节顺序
-
-      inital_pos[6] = -0;
-
-      inital_pos[8] = -1.3 * (180.0 / M_PI);
-      inital_pos[9] = 1.6 * (180.0 / M_PI);
-      // right ankle
-      inital_pos[10] = -0.3 * TO_DEGREE;
-
-      for (int i = 0; i < NUM_ARM_JOINT; i++)
-      {
-        inital_pos[LEGS_TOTEL_JOINT + i] = arms_init_pos[i];
-      }
+      ready_to_feedback = true;
+      inital_pos = ready_inital_pos;
+      std::cout << "moving to ready posture ..." << std::endl;
     }
-
+    else
+    {
+      std::cout << "moving to calibration posture ..." << std::endl;
+    }
     hw_ptr->jointMoveTo(inital_pos, 60, FLAGS_dt);
 
+    /********************************测试结束请注销此段***********************************/
+
+    if (!FLAGS_cali)
+      std::cout << "\033[32mCheck the status of your robot:"
+                << "Type 'o' when you're ready(the robot will stand up!):\033[0m" << std::endl;
+    else
+      std::cout << "\033[32mCheck the status of your robot and calibrate it\nType 'c' to use temply offset and adjust the joint offset\n"
+                << "Type 'o' to move to ready posture, or just 'ctrl+c' to exit..\033[0m" << std::endl;
+
+    if (isTempOffsetFileExist()) {
+      std::string tempOffsetFilePath = std::string(TEMP_OFFSET_PATH) + "/offset.csv";
+      std::cout << "\033[32m临时零点文件存在，我们将使用临时零点文件: " << tempOffsetFilePath << "\033[0m" << std::endl;
+    }
+
+    size_t count = 0;
     while (1)
     {
       if (kbhit())
       {
+        Walk_Command = '\0';
         Walk_Command = getchar();
+        if (Walk_Command == 'c' && FLAGS_cali)
+        {
+          hw_ptr->reloadZeroOffsetConfig(inital_pos);
+        }
+        if (Walk_Command == 'o')
+        {
+          if (!ready_to_feedback)
+          {
+            inital_pos = ready_inital_pos;
+            std::cout << "moving to ready posture..." << std::endl;
+            hw_ptr->jointMoveTo(inital_pos, 60, FLAGS_dt);
+            std::cout << "\033[32mType 'q' to goback to calibration status, or type 'o' again when you're ready(the robot will stand up!):\033[0m" << std::endl;
+            ready_to_feedback = true;
+            continue;
+          }
+          printf("feedback start!!! \r\n");
+          break;
+        }
+        if (Walk_Command == 'q')
+        {
+          if (ready_to_feedback)
+          {
+            std::fill(inital_pos.begin(), inital_pos.end(), 0.0);
+            std::cout << "moving to calibration posture..." << std::endl;
+            hw_ptr->jointMoveTo(inital_pos, 60, FLAGS_dt);
+            std::cout << "\033[32mType 'o' to enter ready status\033[0m" << std::endl;
+            ready_to_feedback = false;
+            continue;
+          }
+          exit(0);
+        }
       }
-      if (Walk_Command == 'o')
+
+      if (AMBAC_ready)
       {
-        printf("feedback start!!! \r\n");
         break;
       }
-      if(AMBAC_ready){
-          break;
+      if (FLAGS_cali && count++ % 1000 == 0)
+      {
+        std::vector<JointParam_t> joint_data;
+        joint_data.resize(NUM_JOINT);
+        hw_ptr->GetJointData(motor_info.joint_ids, joint_data);
+        std::cout << "\n"
+                  << std::setw(80) << std::left << "Joints current:      " << std::endl;
+
+        int num_clo = 4; // 分四列
+        int num_row = std::ceil(static_cast<double>(NUM_JOINT) / num_clo);
+        for (int i = 0; i < num_row; i++)
+        {
+          std::cout << std::left;
+          for (int j = 0; j < num_clo; j++)
+          {
+            if (i * num_clo + j >= NUM_JOINT)
+              break;
+            std::cout << std::setw(2) << i * num_clo + j + 1 << ":"
+                      << std::setw(10) << joint_data[i * num_clo + j].torque;
+          }
+          std::cout << std::endl;
+        }
+
+        for (int i = 0; i < num_row + 2; i++)
+        {
+          std::cout << "\033[F";
+        }
+        std::cout.flush();
       }
 #ifdef KUAVO_CATKIN_MAKE_OPTION
       ros::spinOnce();
@@ -293,7 +400,7 @@ namespace HighlyDynamic
     state_des.arm_q.resize(NUM_ARM_JOINT);
     state_des.arm_v.resize(NUM_ARM_JOINT);
     state_des.arm_vd.resize(NUM_ARM_JOINT);
-    state_des.arm_q.setZero();
+    state_des.arm_q = arms_init_pos;
     state_des.arm_v.setZero();
     state_des.arm_vd.setZero();
     state_des.tau.resize(na_with_arm);
@@ -312,8 +419,9 @@ namespace HighlyDynamic
     state_des.lfv.setZero();
     state_des.rfv.setZero();
     state_des.phase_time = 0;
-
-    state_des.end_effectors = {{motor_info.end_effector_type[0], 0, 0, 0}, {motor_info.end_effector_type[1], 0, 0, 0}};
+    Eigen::VectorXd init_zero(6);
+    state_des.end_effectors = {{motor_info.end_effector_type[0], 0, 0, 0, init_zero, init_zero, init_zero},
+                               {motor_info.end_effector_type[1], 0, 0, 0, init_zero, init_zero, init_zero}};
 
     state_est = state_des;
 
@@ -465,6 +573,10 @@ namespace HighlyDynamic
     step_count++;
     // state_with_arm = g_plant_with_arm->GetPositionsAndVelocities(*g_plant_context_with_arm);
   }
+  void HighlyDynamicRobot::updateHeadJointData()
+  {
+    hw_ptr->head_joint_data_ = head_joint_data_;
+  }
   void HighlyDynamicRobot::state_thread_func()
   {
     double dt = FLAGS_dt;
@@ -495,17 +607,32 @@ namespace HighlyDynamic
       {
         simStep(state_des_, actuation_);
         sim_sensors_ptr->readSensor(sensor_data_motor, *g_plant_context_with_arm);
+        
+        {
+          std::lock_guard<std::mutex> lock(mtx_sensor_data_); 
+          sensor_data_ = sensor_data_motor;
+        }
+
         stateEstimation->Update(state_des_, state_est_, sensor_data_motor, *g_plant_context_with_arm);
       }
       else // 实物
       {
+        updateHeadJointData();
         hw_ptr->Update(state_des_, actuation_);
         hw_ptr->readSensor(sensor_data_motor);
+
+        {
+          std::lock_guard<std::mutex> lock(mtx_sensor_data_); 
+          sensor_data_ = sensor_data_motor;
+        }
+        
         stateEstimation->Update(state_des_, state_est_, sensor_data_motor);
+        state_est_.head_joint_q = sensor_data_motor.head_joint_q;
       }
 
       clock_gettime(CLOCK_MONOTONIC, &cal_time2);
       index++;
+
       robot_state_storge->update_state_est(index, state_est_);
 
       clock_gettime(CLOCK_MONOTONIC, &cal_time3);
@@ -564,19 +691,25 @@ namespace HighlyDynamic
     }
   }
 
-  RobotData HighlyDynamicRobot::queryNewestRobotStates() {
-      return robot_state_storge->newestData();
+  RobotData HighlyDynamicRobot::queryNewestRobotStates()
+  {
+    return robot_state_storge->newestData();
   }
 
-  void HighlyDynamicRobot::switchArmCtrlMode(bool rosArmMode) {
-      if (rosArmMode) {
-          traj_ptr->setRosArmTrue();
-      } else {
-          traj_ptr->setRosArmFalse();
-      }
+  void HighlyDynamicRobot::switchArmCtrlMode(bool rosArmMode)
+  {
+    if (rosArmMode)
+    {
+      traj_ptr->setRosArmTrue();
+    }
+    else
+    {
+      traj_ptr->setRosArmFalse();
+    }
   }
 
-  void HighlyDynamicRobot::SetsetEndEffectors(Eigen::Vector2d target_left_right_pos){
+  void HighlyDynamicRobot::SetsetEndEffectors(Eigen::Vector2d target_left_right_pos)
+  {
     // setting end effectors
     traj_ptr->setEndEffectors(target_left_right_pos);
   }
@@ -596,6 +729,8 @@ namespace HighlyDynamic
     traj_ptr->changeCtlMode(control_mode);
     Eigen::Vector3d cmd_vel_step = RobotConfig.getValue<Eigen::VectorXd>("cmd_vel_step");
     double vx, vy, vyaw;
+    Eigen::Vector3d step_cmd = {0.0, 0, 0};
+
     while (th_runing)
     {
       RobotData robot_states = robot_state_storge->newestData();
@@ -605,19 +740,34 @@ namespace HighlyDynamic
         Walk_Command = getchar();
         if (Walk_Command == 'm')
         {
-          control_mode = (control_mode == PositionControl) ? VelocityControl : PositionControl;
+          switch (control_mode)
+          {
+          case VelocityControl:
+            control_mode = PositionControl;
+            break;
+          case PositionControl:
+            control_mode = StepControl;
+            break;
+          case StepControl:
+            control_mode = VelocityControl;
+            break;
+          default:
+            break;
+          }
+          // control_mode = (control_mode == PositionControl) ? VelocityControl : PositionControl;
           traj_ptr->changeCtlMode(control_mode);
           vx = vy = vyaw = 0;
           std::cout << "\n"
-                    << ((control_mode == PositionControl) ? "位置控制模式" : "速度控制模式") << std::endl;
+                    << controlMode_name_map[control_mode] << "模式" << std::endl;
         }
         if (state_des_.phase == P_stand)
         {
+          Eigen::VectorXd left_right(12);
           switch (Walk_Command)
           {
           case 'r':
             std::cout << "\n"
-                      << ((control_mode == PositionControl) ? "位置控制模式" : "速度控制模式") << std::endl;
+                      << controlMode_name_map[control_mode] << "模式" << std::endl;
             vx = vy = vyaw = 0;
             traj_ptr->changePhases(P_walk);
             break;
@@ -639,17 +789,106 @@ namespace HighlyDynamic
             traj_ptr->setRosArmFalse();
             break;
           case 'k':
-            traj_ptr->setEndEffectors({30, 30});
+            if(traj_ptr->getEndEffectorType() == EndEffectorType::jodell){
+                left_right << 10, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0;
+                traj_ptr->setEndhand(left_right);
+            }
+            else if(traj_ptr->getEndEffectorType() == EndEffectorType::qiangnao){
+              // 填充 left 和 right 向量的值
+              left_right << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+              traj_ptr->setEndhand(left_right);
+            }
+            else {
+              // None
+            }
             break;
           case 'h':
-            traj_ptr->setEndEffectors({200, 200});
+            if(traj_ptr->getEndEffectorType() == EndEffectorType::jodell){
+                left_right << 250, 0, 0, 0, 0, 0, 250, 0, 0, 0, 0, 0;
+                traj_ptr->setEndhand(left_right);
+            }
+            else if(traj_ptr->getEndEffectorType() == EndEffectorType::qiangnao){
+              // 填充 left 和 right 向量的值
+              left_right << 65, 65, 90, 80, 80, 90, 65, 65, 90, 80, 80, 90;
+              traj_ptr->setEndhand(left_right);
+            }
+            else {
+              // None
+            }
             break;
+          case 'w':
+            step_cmd = {0.1, 0.0, 0.0};
+            traj_ptr->stepCommand(3, step_cmd);
+            break;
+          case 's':
+            step_cmd = {-0.1, 0.0, 0.0};
+            traj_ptr->stepCommand(3, step_cmd);
+            break;
+          case 'a':
+            step_cmd = {0.0, 0.05, 0.0};
+            traj_ptr->stepCommand(3, step_cmd);
+            break;
+          case 'd':
+            step_cmd = {0.0, -0.05, 0.0};
+            traj_ptr->stepCommand(3, step_cmd);
+            break;
+          case 'q':
+            step_cmd = {0.0, 0.0, 8};
+            traj_ptr->stepCommand(3, step_cmd);
+            break;
+          case 'e':
+            step_cmd = {0.0, 0.0, -8};
+            traj_ptr->stepCommand(3, step_cmd);
+            break;
+            // case 'l':
+            // {
+            //   int index_l = 2;
+            //   std::pair<int, int> delay_size;
+            //   RobotState_t new_state;
+            //   auto start = std::chrono::steady_clock::now();
+            //   while (true)
+            //   {
+            //     auto now = std::chrono::steady_clock::now();
+            //     auto elapsed_time = std::chrono::duration_cast<std::chrono::seconds>(now - start).count();
+
+            //     if (kbhit())
+            //     {
+            //       getRobotState(new_state);
+            //       char new_cmd = getchar();
+            //       if (new_cmd == 'q')
+            //         break;
+            //     }
+
+            //     delay_size = traj_ptr->changeHandArmPoseDelay(index_l);
+            //     if (elapsed_time > delay_size.first){index_l += 1;}
+            //     if (index_l >= delay_size.second){break;}
+
+            //     usleep(1000 * 100);
+            //   }
+
+            //   traj_ptr->changeHandArmPose(1);
+            //   break;
+            // }
 
           default:
             if (std::isdigit(Walk_Command))
             {
               int index = Walk_Command - '0';
-              traj_ptr->changeArmPose(index);
+              if (index == 9)
+              {
+                std::string config_name = "poses_1.csv";
+                traj_ptr->changeHandArmPoses(config_name);
+              }
+              else if (index == 8)
+              {
+                std::string config_name = "poses_0.csv";
+                traj_ptr->changeHandArmPoses(config_name);
+              }
+              else
+              {
+                // traj_ptr->changeArmPose(index);
+                traj_ptr->changeHandArmPose(index);
+              }
             }
             break;
           }
@@ -675,76 +914,108 @@ namespace HighlyDynamic
             vx = vy = vyaw = 0;
           }
 
-          if (Walk_Command == 'w')
           {
-            if (control_mode == VelocityControl)
+            if (Walk_Command == 'w')
             {
-              vx += cmd_vel_step[0];
+              if (control_mode == VelocityControl)
+              {
+                vx += cmd_vel_step[0];
+              }
+              else if (control_mode == StepControl)
+              {
+                step_cmd = {0.1, 0.0, 0.0};
+                traj_ptr->stepCommand(3, step_cmd);
+              }
+              else
+              {
+                PositionDelta cmd = {0.2, 0, 0.0};
+                traj_ptr->positionCommand(cmd);
+              }
             }
-            else
+            if (Walk_Command == 's')
             {
-              PositionDelta cmd = {0.2, 0, 0.0};
-              traj_ptr->positionCommand(cmd);
+              if (control_mode == VelocityControl)
+              {
+                vx -= cmd_vel_step[0];
+              }
+              else if (control_mode == StepControl)
+              {
+                step_cmd = {-0.1, 0.0, 0.0};
+                traj_ptr->stepCommand(3, step_cmd);
+              }
+              else
+              {
+                PositionDelta cmd = {-0.2, 0, 0.0};
+                traj_ptr->positionCommand(cmd);
+              }
             }
-          }
-          if (Walk_Command == 's')
-          {
-            if (control_mode == VelocityControl)
+            if (Walk_Command == 'a')
             {
-              vx -= cmd_vel_step[0];
+              if (control_mode == VelocityControl)
+              {
+                vy += cmd_vel_step[1];
+              }
+              else if (control_mode == StepControl)
+              {
+                step_cmd = {0.0, 0.05, 0.0};
+                traj_ptr->stepCommand(3, step_cmd);
+              }
+              else
+              {
+                PositionDelta cmd = {0, 0.2, 0.0};
+                traj_ptr->positionCommand(cmd);
+              }
             }
-            else
+            if (Walk_Command == 'd')
             {
-              PositionDelta cmd = {-0.2, 0, 0.0};
-              traj_ptr->positionCommand(cmd);
+              if (control_mode == VelocityControl)
+              {
+                vy -= cmd_vel_step[1];
+              }
+              else if (control_mode == StepControl)
+              {
+                step_cmd = {0.0, -0.05, 0.0};
+                traj_ptr->stepCommand(3, step_cmd);
+              }
+              else
+              {
+                PositionDelta cmd = {0, -0.2, 0.0};
+                traj_ptr->positionCommand(cmd);
+              }
             }
-          }
-          if (Walk_Command == 'a')
-          {
-            if (control_mode == VelocityControl)
+            if (Walk_Command == 'q')
             {
-              vy += cmd_vel_step[1];
+              if (control_mode == VelocityControl)
+              {
+                vyaw += cmd_vel_step[2];
+              }
+              else if (control_mode == StepControl)
+              {
+                step_cmd = {0.0, 0.0, 8};
+                traj_ptr->stepCommand(3, step_cmd);
+              }
+              else
+              {
+                PositionDelta cmd = {0, 0, 10.0};
+                traj_ptr->positionCommand(cmd);
+              }
             }
-            else
+            if (Walk_Command == 'e')
             {
-              PositionDelta cmd = {0, 0.2, 0.0};
-              traj_ptr->positionCommand(cmd);
-            }
-          }
-          if (Walk_Command == 'd')
-          {
-            if (control_mode == VelocityControl)
-            {
-              vy -= cmd_vel_step[1];
-            }
-            else
-            {
-              PositionDelta cmd = {0, -0.2, 0.0};
-              traj_ptr->positionCommand(cmd);
-            }
-          }
-          if (Walk_Command == 'q')
-          {
-            if (control_mode == VelocityControl)
-            {
-              vyaw += cmd_vel_step[2];
-            }
-            else
-            {
-              PositionDelta cmd = {0, 0, 10.0};
-              traj_ptr->positionCommand(cmd);
-            }
-          }
-          if (Walk_Command == 'e')
-          {
-            if (control_mode == VelocityControl)
-            {
-              vyaw -= cmd_vel_step[2];
-            }
-            else
-            {
-              PositionDelta cmd = {0, 0, -10.0};
-              traj_ptr->positionCommand(cmd);
+              if (control_mode == VelocityControl)
+              {
+                vyaw -= cmd_vel_step[2];
+              }
+              else if (control_mode == StepControl)
+              {
+                step_cmd = {0.0, 0.0, -8};
+                traj_ptr->stepCommand(3, step_cmd);
+              }
+              else
+              {
+                PositionDelta cmd = {0, 0, -10.0};
+                traj_ptr->positionCommand(cmd);
+              }
             }
           }
           if (Walk_Command == ' ')
@@ -763,7 +1034,9 @@ namespace HighlyDynamic
 
           if (control_mode == VelocityControl && Walk_Command != '\0' && Walk_Command != '\n' && Walk_Command != EOF)
           {
-            traj_ptr->velocityCommand({vx, vy, vyaw});
+            auto velocityData = traj_ptr->velocityCommand({vx, vy, vyaw});
+            vx = velocityData.vx;
+            vy = velocityData.vy;
             vyaw = 0;
           }
 
@@ -852,7 +1125,8 @@ namespace HighlyDynamic
       printf("control_thread open failed!\n");
       return -1;
     }
-    if(listening_keyboard && !FLAGS_disable_keyboard_thread){
+    if (listening_keyboard && !FLAGS_disable_keyboard_thread)
+    {
       keyboard_thread = std::thread(&HighlyDynamicRobot::keyboard_thread_func, this);
       if (!keyboard_thread.joinable())
       {
@@ -893,46 +1167,68 @@ namespace HighlyDynamic
     std::cout << "Write complete\n";
     fp.close();
   }
-  void sigintHandler(int sig)
-  {
+
+void sigintHandler(int sig)
+{
+    // Ensure the signal is only handled once
     if (!sigint_caught.exchange(true))
     {
-      printf("signal requested ...\n");
-      if (global_robot_ptr != nullptr)
-        global_robot_ptr->th_runing = false;
-      usleep(1000 * 100);
-      if (FLAGS_real && !FLAGS_play_back_mode)
-      {
-        std::cout << "HWPlantDeInit" << std::endl;
-        HardwarePlant::HWPlantDeInit();
-        printf("HWPlantDeInit success!\n");
-        imu_stop();
-      }
-      if (FLAGS_log_lcm)
-      {
-        logger_ptr->stop();
-      }
-      printf("signal exited.\n");
-      exit(0);
+        printf("Signal requested ...\n");
+
+        // Stop the robot thread if the global pointer is not null
+        if (global_robot_ptr != nullptr)
+        {
+            global_robot_ptr->th_runing = false;
+        }
+
+        // Sleep for 100 milliseconds
+        usleep(1000 * 100);
+
+        // Stop the logger if logging is enabled
+        if (FLAGS_log)
+        {
+            logger_ptr->set_logfilename_suffix(get_logfilename_suffix());
+            logger_ptr->set_timestamp(stdout_redirect.get_timestamp());
+            logger_ptr->stop();
+        }
+
+        printf("Before Finish stdout redirection.\n");
+
+        // Finish stdout redirection
+        stdout_redirect.finish();
+
+        // Deinitialize hardware if in real mode and not in playback mode
+        if (FLAGS_real && !FLAGS_play_back_mode)
+        {
+            std::cout << "HWPlantDeInit" << std::endl;
+            HardwarePlant::HWPlantDeInit();
+            printf("HWPlantDeInit success!\n");
+            imu_stop();
+        }
+#ifdef KUAVO_CATKIN_MAKE_OPTION
+        printf("shutdown ROS\n");
+        // Shutdown ROS
+        ros::shutdown();
+#endif
+        // Exit the program
+        exit(0);
     }
     else
     {
-      std::cout << "Ignoring repeated SIGINT." << std::endl;
+        std::cout << "Ignoring repeated SIGINT." << std::endl;
     }
-  }
-  int HighlyDynamicRobot::doMainAsync(int argc, char *argv[])
-  {
+}
 
-    static StdoutStreamBuf stdoutStreamBuf;
-    std::cout.rdbuf(&stdoutStreamBuf);
-    std::cerr.rdbuf(&stdoutStreamBuf); 
+int HighlyDynamicRobot::doMainAsync(int argc, char *argv[])
+{
 
     sched_process(70);
     // 参数解析
     gflags::ParseCommandLineFlags(&argc, &argv, true);
+    FLAGS_log = FLAGS_log || FLAGS_log_lcm;
     signal(SIGINT, HighlyDynamic::sigintHandler);
 
-    if (FLAGS_log_lcm)
+    if (FLAGS_log)
     {
       logger_ptr = new LogWriter();
       logger_ptr->startBinLog("/tmp/lcm_log.bin");
@@ -980,6 +1276,7 @@ namespace HighlyDynamic
   int HighlyDynamicRobot::doMain(int argc, char *argv[])
   {
     int ret = 0;
+    std::cout << "Current compiled git repo version: " << GIT_DESCRIBE << std::endl; // Print the current repo version
     ret = doMainAsync(argc, argv);
     if (ret != 0)
     {
@@ -993,4 +1290,15 @@ namespace HighlyDynamic
     return 0;
   }
 
-}
+  const SensorData_t& HighlyDynamicRobot::getSensorData() 
+  {
+    std::lock_guard<std::mutex> lock(mtx_sensor_data_); 
+    return sensor_data_;
+  }
+
+  bool HighlyDynamicRobot::hasHeadJoint()
+  {
+    return HardwarePlant::hasHeadJoint();
+  }
+
+} // namespace HighlyDynamic

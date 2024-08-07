@@ -4,6 +4,21 @@ project(dynamic_biped VERSION 0.1.0)
 
 option(KUAVO_INTERNAL_CONTROLLER "Compile libs for internal_controller repo" OFF)
 option(OPENSOURCE "Compile opensource respository" ON)
+option(ONLY_USE_HALF_UP_BODY "Use half up body mode" OFF)
+option(USE_PYTHON_RUIWO_SDK "Use Python RuiwoController SDK" ON)
+
+if(ONLY_USE_HALF_UP_BODY)
+  message(STATUS "Enabling ONLY_USE_HALF_UP_BODY option is ON")
+  add_compile_definitions(HALF_UP_BODY)
+else()
+  message(STATUS "Compiling without ONLY_USE_HALF_UP_BODY defined")
+endif()
+
+if(USE_PYTHON_RUIWO_SDK)
+  message(STATUS "Enabling USE_PYTHON_RUIWO_SDK option is ON")
+else()
+  message(STATUS "Compiling without USE_PYTHON_RUIWO_SDK defined, OFF")
+endif()
 
 if(KUAVO_INTERNAL_CONTROLLER)
   message(STATUS "Enabling KUAVO_INTERNAL_CONTROLLER option is ON")
@@ -22,6 +37,20 @@ find_package(lcm CONFIG REQUIRED)
 find_package(Python3 3.8 EXACT COMPONENTS Interpreter Development NumPy REQUIRED)
 find_package(Eigen3 REQUIRED)
 
+# Check and Install dependencies
+execute_process(
+  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/tools/install_deps.sh
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+execute_process(
+  COMMAND git describe
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  OUTPUT_VARIABLE GIT_DESCRIBE
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+message("Git describe: ${GIT_DESCRIBE}")
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/opensource/common/git_describe.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/src/opensource/common/git_describe.h" @ONLY)
 
 # set ROBOT_VERSION for test
 # set(ROBOT_VERSION 30)
@@ -41,6 +70,7 @@ else()
 endif()
 
 add_compile_definitions(ROBOT_VERSION_INT=${ROBOT_VERSION})
+
 
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g") # 用于性能测试
 
@@ -115,6 +145,12 @@ if(DEFINED CATKIN_DEVEL_PREFIX)
     robotArmQVVD.msg
     robotTorsoState.msg
     robotPhase.msg
+    robotHandPosition.msg
+    robotHeadMotionData.msg
+    armTargetPoses.msg
+    robotArmPose.msg
+    centerOfMass.msg
+    robotImuGyroAcc.msg
   )
   add_service_files(
     DIRECTORY ./ros_package/srv/
@@ -123,7 +159,11 @@ if(DEFINED CATKIN_DEVEL_PREFIX)
     srvchangeCtlMode.srv
     changeArmCtrlMode.srv
     changeAMBACCtrlMode.srv
-    srvChangeJoller.srv
+    controlEndHand.srv
+    comPosition.srv
+    getComPosition.srv
+    changeHandArmPosesByConfigName.srv
+    controlJodellClaw.srv
   )
   generate_messages(
     DEPENDENCIES
@@ -149,6 +189,9 @@ if (NOT OPENSOURCE)
   add_subdirectory_if_exists(lib/xsens_ros_mti_driver)
   add_subdirectory_if_exists(lib/motioncapture)
   add_subdirectory_if_exists(lib/ruierman_controller)
+  add_subdirectory_if_exists(lib/ruiwo_controller)
+  add_subdirectory_if_exists(lib/ruiwo_controller_cxx)
+  add_subdirectory_if_exists(lib/hand_sdk)
   add_subdirectory_if_exists(lib/jodell_claw_driver)
   add_subdirectory_if_exists(lib/DynamixelSDK)
 endif()

@@ -42,6 +42,7 @@
     <parent link="torso"/>
     <child link="l_arm_pitch"/>
     <axis xyz="0 1 0"/>
+    <limit velocity="1" effort="20" lower="-3.14" upper="0.52" />
   </joint>
   <transmission type="SimpleTransmission">
     <joint name="l_arm_pitch"/>
@@ -69,6 +70,7 @@
     <parent link="l_arm_pitch"/>
     <child link="l_arm_roll"/>
     <axis xyz="1 0 0"/>
+    <limit velocity="1" effort="20" lower="-0.35" upper="2.36" />
   </joint>
   <transmission type="SimpleTransmission">
     <joint name="l_arm_roll"/>
@@ -96,6 +98,7 @@
     <parent link="l_arm_roll"/>
     <child link="l_arm_yaw"/>
     <axis xyz="0 0.0045033014816499 0.999989860086474"/>
+    <limit velocity="1" effort="20" lower="-2.36" upper="2.36" />
   </joint>
   <transmission type="SimpleTransmission">
     <joint name="l_arm_yaw"/>
@@ -123,6 +126,7 @@
     <parent link="l_arm_yaw"/>
     <child link="l_forearm_pitch"/>
     <axis xyz="0 1 0"/>
+    <limit velocity="1" effort="20" lower="-1.75" upper="1.75" />
   </joint>
   <transmission type="SimpleTransmission">
     <joint name="l_forearm_pitch"/>
@@ -150,6 +154,7 @@
     <parent link="l_forearm_pitch"/>
     <child link="l_forearm_yaw"/>
     <axis xyz="0 0 1"/>
+    <limit velocity="1" effort="20" lower="-2.36" upper="2.36" />
   </joint>
   <transmission type="SimpleTransmission">
     <joint name="l_forearm_yaw"/>
@@ -177,6 +182,7 @@
     <parent link="l_forearm_yaw"/>
     <child link="l_hand_roll"/>
     <axis xyz="1 0 0"/>
+    <limit velocity="1" effort="20" lower="-0.17" upper="0.17" />
   </joint>
   <transmission type="SimpleTransmission">
     <joint name="l_hand_roll"/>
@@ -203,6 +209,7 @@
     <parent link="l_hand_roll"/>
     <child link="l_hand_pitch"/>
     <axis xyz="0 1 0"/>
+    <limit velocity="1" effort="20" lower="-0.26" upper="0.26" />
   </joint>
   <transmission type="SimpleTransmission">
     <joint name="l_hand_pitch"/>
@@ -231,6 +238,7 @@
     <parent link="torso"/>
     <child link="r_arm_pitch"/>
     <axis xyz="0 1 0"/>
+    <limit velocity="1" effort="20" lower="-3.14" upper="3.14" />
   </joint>
   <transmission type="SimpleTransmission">
     <joint name="r_arm_pitch"/>
@@ -258,6 +266,7 @@
     <parent link="r_arm_pitch"/>
     <child link="r_arm_roll"/>
     <axis xyz="1 0 0"/>
+    <limit velocity="1" effort="20" lower="-3.14" upper="3.14" />
   </joint>
   <transmission type="SimpleTransmission">
     <joint name="r_arm_roll"/>
@@ -285,6 +294,7 @@
     <parent link="r_arm_roll"/>
     <child link="r_arm_yaw"/>
     <axis xyz="0 0 1"/>
+    <limit velocity="1" effort="20" lower="-3.14" upper="3.14" />
   </joint>
   <transmission type="SimpleTransmission">
     <joint name="r_arm_yaw"/>
@@ -312,6 +322,7 @@
     <parent link="r_arm_yaw"/>
     <child link="r_forearm_pitch"/>
     <axis xyz="0 1 0"/>
+    <limit velocity="1" effort="20" lower="-3.14" upper="3.14" />
   </joint>
   <transmission type="SimpleTransmission">
     <joint name="r_forearm_pitch"/>
@@ -339,6 +350,7 @@
     <parent link="r_forearm_pitch"/>
     <child link="r_forearm_yaw"/>
     <axis xyz="0 0 1"/>
+    <limit velocity="1" effort="20" lower="-3.14" upper="3.14" />
   </joint>
   <transmission type="SimpleTransmission">
     <joint name="r_forearm_yaw"/>
@@ -366,6 +378,7 @@
     <parent link="r_forearm_yaw"/>
     <child link="r_hand_roll"/>
     <axis xyz="1 0 0"/>
+    <limit velocity="1" effort="20" lower="-0.17" upper="0.17" />
   </joint>
   <transmission type="SimpleTransmission">
     <joint name="r_hand_roll"/>
@@ -393,6 +406,7 @@
     <parent link="r_hand_roll"/>
     <child link="r_hand_pitch"/>
     <axis xyz="0 1 0"/>
+    <limit velocity="1" effort="20" lower="-0.26" upper="0.26" />
   </joint>
   <transmission type="SimpleTransmission">
     <joint name="r_hand_pitch"/>

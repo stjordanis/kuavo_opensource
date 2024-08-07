@@ -14,6 +14,12 @@
 #include <filesystem>
 #include <csignal>
 #include <experimental/filesystem>
+#include <cstdio>
+#include <sstream>
+#include <cstdlib>
+#include <unistd.h>
+#include <csignal>
+#include "git_describe.h"
 
 namespace fs = std::experimental::filesystem;
 
@@ -38,6 +44,8 @@ int32_t process_rt();
 int32_t sched_thread(int p = 40);
 int32_t sched_process(int p = 40);
 std::string getUserHomeDirectory();
+std::string find_file(const std::string &root_dir, const std::string &filename);
+int call_Setzero(const std::string &root_dir, const std::string &filename);
 
 bool readCsvData(const char *file_name, bool skip_header, std::vector<std::vector<double>> &data);
 inline double normalize_angle(double angle)
@@ -52,6 +60,77 @@ int kbhit(void);
 void print_cpu_mask(cpu_set_t cpu_mask);
 int8_t get_cpu_mask(pid_t pid, cpu_set_t *mask);
 int8_t set_cpu_mask(pid_t pid, cpu_set_t *mask);
+
+static const std::string get_logfilename_suffix(){
+    return GIT_DESCRIBE;
+}
+
+class TeeRedirect
+{
+public:
+    TeeRedirect()
+    {
+        initializeLog();
+        start();
+    }
+
+    void start()
+    {
+        pipe = popen(("tee -i " + filename).c_str(), "w");
+        if (pipe == nullptr)
+        {
+            std::cerr << "Error opening pipe to tee, coould not redirect output to file." << std::endl;
+            return;
+        }
+
+        originalStdout = dup(fileno(stdout));
+        originalStderr = dup(fileno(stderr));
+        dup2(fileno(pipe), fileno(stdout));
+        dup2(fileno(pipe), fileno(stderr));
+    }
+
+    void finish()
+    {
+        if (pipe != nullptr) {
+            std::cout << "终端输出日志保存到: " << filename << std::endl;
+            fflush(stdout);
+            fflush(stderr);
+            dup2(originalStderr, fileno(stderr));
+            dup2(originalStdout, fileno(stdout));
+            pclose(pipe);
+            pipe = nullptr;
+        }
+    }
+
+    std::time_t get_timestamp(){
+        return this->timestamp;
+    }
+
+private:
+    std::string filename;
+    FILE *pipe = nullptr;
+    int originalStdout = -1;
+    int originalStderr = -1;
+    std::time_t timestamp;
+
+    void initializeLog()
+    {
+        auto now = std::chrono::system_clock::now();
+        timestamp = std::chrono::system_clock::to_time_t(now);
+        std::stringstream ss;
+        ss << std::put_time(std::localtime(&timestamp), "%Y%m%d_%H%M%S");
+        std::string timestampStr = ss.str();
+
+        filename = getUserHomeDirectory() + "/.log/log_" + timestampStr + "_" + get_logfilename_suffix() + ".txt";
+        std::cout << "终端输出日志保存到: " << filename << std::endl;
+
+        fs::path filePath(filename);
+        if (!filePath.parent_path().empty() && !fs::exists(filePath.parent_path()))
+        {
+            fs::create_directories(filePath.parent_path());
+        }
+    }
+};
 class StdoutStreamBuf : public std::streambuf
 {
 public:
@@ -263,8 +342,11 @@ private:
     int thread_count_;
 };
 
+#define TEMP_OFFSET_PATH "/tmp/lejuconfig"
+
 std::string getKuavoHomePath();
 std::string getKuavoOffsetFilePath();
 std::vector<std::vector<double_t>> loadKuavoOffsetPosition(std::string offset_file_path);
 std::string getKuavoEcMasterLicensePath();
+bool isTempOffsetFileExist();
 #endif

@@ -19,6 +19,13 @@ typedef struct
   Eigen::Vector3d free_acc_W;
   Eigen::Vector4d quat_W;
   std::vector<EndEffectorInfo> end_effectors_data;
+  struct timespec timestamp;
+  struct timespec acc_timestamp;
+  struct timespec gyro_timestamp;
+  struct timespec quat_timestamp;
+  // std::vector<EndEffectorInfo> endhand_effectors_data;
+  Eigen::Vector2d head_joint_q;
+  
   void resizeJoint(size_t n)
   {
     joint_q.resize(n);

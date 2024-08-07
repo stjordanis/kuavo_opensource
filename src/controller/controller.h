@@ -29,6 +29,7 @@ extern lcm::LCM lc_instance;
 namespace HighlyDynamic
 {
   extern std::vector<std::string> end_frames_name;
+  static const std::vector<std::string> end_frames_name_full = {"torso", "l_foot_sole", "r_foot_sole", "l_hand_sole", "r_hand_sole"};
 
   using namespace drake;
 
@@ -61,6 +62,9 @@ namespace HighlyDynamic
     void UpdateTau(RobotState_t &state_des, RobotState_t &state_est, Eigen::VectorXd &tau);
 
   private:
+    Eigen::VectorXd qddDesire(const Eigen::VectorXd &qv,
+                              const Eigen::VectorXd &q_des, const Eigen::VectorXd &v_des, const Eigen::VectorXd &vd_des,
+                              Eigen::VectorXd kp, Eigen::VectorXd ki, Eigen::VectorXd kd);
     void UpdateMat(const Eigen::VectorXd &qv, const Contact_states contact_des);
     Eigen::VectorXd Tau(Eigen::VectorXd &qdd, Eigen::VectorXd &lambda);
     drake::symbolic::Expression V(Eigen::Matrix<double, 6, 1> &x_com, solvers::VectorXDecisionVariable &u_com,
@@ -82,14 +86,17 @@ namespace HighlyDynamic
     const uint32_t N_f_ = 3; // contact force dimension
     const uint32_t com_dim_ = 3;
     const double epsilon = 1.0e-8;
-    uint32_t N_c_, N_eq_;
+    uint32_t N_c_, N_eq_; // N_c_:支撑脚的frame个数(0,2,4),N_eq_:非支撑脚着地frame个数/2
 
     multibody::MultibodyPlant<double> *plant_;
     multibody::MultibodyPlant<double> *plant_with_arm_;
     multibody::MultibodyPlant<double> *plant_arm_dyn_;
+    multibody::MultibodyPlant<double> *full_body_plant_;
     std::unique_ptr<systems::Context<double>> plant_context_;
     std::unique_ptr<systems::Context<double>> plant_context_with_arm;
     std::unique_ptr<systems::Context<double>> plant_context_arm_dyn_;
+    std::unique_ptr<systems::Context<double>> plant_context_full_body_;
+    std::unique_ptr<systems::Context<double>> plant_context_full_body_des_;
     int32_t na_, nq_, nv_, na_with_arm, nq_with_arm, nv_with_arm;
     uint32_t nq_f_;
     uint32_t nv_f_;
@@ -117,17 +124,21 @@ namespace HighlyDynamic
 
     Eigen::VectorXd tau_sol_;
     Eigen::VectorXd lambda_sol_;
+    Eigen::VectorXd qdd_sol_ ;
+    Eigen::VectorXd u_com_sol_;
+    Eigen::MatrixXd beta_sol_;
     Eigen::VectorXd cost_value_;
     bool is_tracking_ = true;
     bool isParallelArm{false};
     Eigen::VectorXd q_failed_tracking;
-    RobotState_t state_est_,state_est_st_;
-    RobotState_t state_des_,state_des_st_;
+    RobotState_t state_est_, state_est_st_;
+    RobotState_t state_des_, state_des_st_;
 
     Eigen::VectorXd hand_kp;
     Eigen::VectorXd hand_ki;
     Eigen::VectorXd hand_kd;
     PIDController *hands_Controller_;
-    RobotStateTransform* state_transform;
-  };;
+    RobotStateTransform *state_transform;
+  };
+  ;
 } // namespace HighlyDynamic

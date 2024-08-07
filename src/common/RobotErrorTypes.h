@@ -18,6 +18,7 @@ enum RobotErrorType
     ERROR_MAJOR,
     ERROR_MINOR,
     ERROR_UNKNOWN,
+    ERROR_MPC_FAILED,
     // 添加其他错误类型...
 };
 struct RobotException

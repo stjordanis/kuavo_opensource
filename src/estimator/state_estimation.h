@@ -22,7 +22,7 @@ namespace HighlyDynamic
 
     class StateEstimation
     {
-    private:
+    protected:
         // drake::systems::Context<double> *plant_context_;
         drake::multibody::MultibodyPlant<double> *plant_;
         drake::multibody::MultibodyPlant<double> *plant_with_arm_;
@@ -34,6 +34,7 @@ namespace HighlyDynamic
         bool ori_init_flag;
         uint8_t initial_count{0};
         Eigen::Vector4d _quat_ini_inv;
+        Eigen::Vector4d stand_ini_yaw_quat_;
         _SensorOrientationData sensori_data_;
         int32_t na_, nq_, nv_, na_with_arm, nq_with_arm, nv_with_arm;
         double dt_;
@@ -80,7 +81,7 @@ namespace HighlyDynamic
         void JointPosCompensating(RobotState_t &state, SensorData_t sensor_data);
         void JointPosCompensating(RobotState_t &state, Eigen::VectorXd &tau);
         void JointPosCompensating(RobotState_t state, SensorData_t sensor_data, double *c2t_coeff);
-        inline void preProcessIMU(SensorData_t &sensor_data);
+        void preProcessIMU(SensorData_t &sensor_data);
         void pubLCM(RobotState_t &state_est_pub, std::string str_pre = "state");
         StateEstimation(drake::multibody::MultibodyPlant<double> *plant, drake::multibody::MultibodyPlant<double> *plant_with_arm, HighlyDynamic::HardwarePlant *hardware_ptr);
         ~StateEstimation();
