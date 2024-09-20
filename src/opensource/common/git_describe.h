@@ -1,6 +1,6 @@
 #ifndef GIT_DESCRIBE_H
 #define GIT_DESCRIBE_H
 
-#define GIT_DESCRIBE "0.0.2-46-g011e529"
+#define GIT_DESCRIBE "0.0.2-47-ga7c5712"
 
 #endif
